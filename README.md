@@ -53,9 +53,9 @@ Pełna lista z opisami: **[.env.example](.env.example)**. W skrócie:
 |---|---|
 | **Onboarding** | imię, **wiek + płeć**, dzielnica, preferowane kategorie |
 | **Lokalizacja** | wybór **miasta** (Sandomierz + okolice + Kraków) + **GPS** (wykrywa najbliższe miasto); dystanse na żywo |
-| **Na dziś** | feed z filtrem **odległości**, czasu i „za darmo"; nadchodzące wydarzenia; nudge meldowania; znajomi |
+| **Na dziś** | **„W okolicy teraz"** (wydarzenia ≤2 km i start ≤4 h); feed odcinany **konfigurowalnym promieniem** z **auto-poszerzaniem**, gdy mało wydarzeń; nadchodzące; nudge meldowania; znajomi |
 | **Wyszukiwarka** | szukanie po wydarzeniach/lokalach/ofertach (odporne na polskie znaki), pogrupowane wyniki |
-| **Mapa** | pinezki wydarzeń/lokali, okrąg zasięgu, **przycisk GPS**, filtry, karta miejsca |
+| **Mapa** | pinezki wydarzeń/lokali, **okrąg promienia** (chip 5/15/30/50 km), **przycisk GPS**, filtry, karta miejsca |
 | **Doradca AI / agent** | rozmowa → propozycje; dla firm: doradca tworzy promocje i **Oferty Lokalio** |
 | **Promocje / Oferty Lokalio** | promocje po odległości + oferty **za meldunek** i **dla obserwujących**; aktywacja z odliczaniem |
 | **Lokal** | **meldowanie + anonimowa demografia** (wiek/płeć), znajomi tutaj, oferty, wydarzenia |
