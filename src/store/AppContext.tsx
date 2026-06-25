@@ -24,6 +24,7 @@ import type { AccountType, OrganizerCategoryKey } from '../lib/business';
 import { EVENTS, OFFERS, eventsForCity, offersForCity, venuesForCity, makeDefaultUser, venueById, offerById, registerLiveData, registerOwnerVenues, registerOwnerOffers, registerOwnerEvents, registerPublishedEvents, publishedEventsForCity, activeVenues, DEMO_NEARBY_EVENT, makeDemoNearbyEvent, registerDemoEvents, type LiveData } from '../data/seed';
 import { loadPublishedEvents } from '../lib/published';
 import { track, identifyUser, resetAnalytics } from '../lib/analytics';
+import { setErrorUser } from '../lib/errors';
 import { snapRadius, DEFAULT_RADIUS_KM } from '../lib/geo';
 import { CITIES, DEFAULT_CITY_ID, cityById, cityIdOf, nearestCity, type City } from '../data/cities';
 import { loadLivePlaces } from '../lib/places';
@@ -368,6 +369,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const handle = async (info: SessionInfo | null) => {
       setAccount(info);
       if (info) identifyUser(info.userId); // spina anonimową sesję PostHog z kontem (bez maila/PII)
+      setErrorUser(info?.userId ?? null); // kontekst użytkownika dla Sentry (samo id)
       // logowanie bez wcześniejszego profilu lokalnego → wczytaj profil z bazy
       if (info && !userRef.current) {
         const p = await loadProfile(info.userId);
@@ -893,6 +895,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await signOut();
     setAccount(null);
     resetAnalytics(); // kolejne zdarzenia znów anonimowe
+    setErrorUser(null);
     showToast('Wylogowano', '👋');
   }, [showToast]);
 

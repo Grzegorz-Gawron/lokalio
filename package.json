@@ -11,6 +11,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@sentry/react": "^10.61.0",
     "@supabase/supabase-js": "^2.106.2",
     "leaflet": "1.9.4",
     "lucide-react": "0.454.0",
