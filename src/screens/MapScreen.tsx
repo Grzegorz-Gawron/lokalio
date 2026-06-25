@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { LocateFixed } from 'lucide-react';
+import { LocateFixed, Target } from 'lucide-react';
 import { useApp } from '../store/AppContext';
 import { MapView, type MapMarker } from '../components/MapView';
 import { MapCarousel, type MapCarItem } from '../components/MapCarousel';
 import { useTileBuilders } from '../components/FeedTile';
 import { LocationSheet } from '../components/LocationSheet';
 import { CATEGORY_META, CATEGORY_ORDER } from '../theme';
-import { haversineKm, formatDistance } from '../lib/geo';
+import { haversineKm, formatDistance, formatRadius, nextRadius } from '../lib/geo';
 import { dateChipLabel, isToday, DATE_OPTS, matchesDate } from '../lib/format';
 import { eventById, venueById, offerById } from '../data/seed';
 import { offerMainCat } from '../lib/business';
@@ -35,7 +35,7 @@ function orderByProximity(list: MapMarker[], here: LatLng): MapMarker[] {
 }
 
 export function MapScreen() {
-  const { user, events, offers, venues, currentCity, navigate, locating, setCity, mapFocus, setMapFocus } = useApp();
+  const { user, events, offers, venues, currentCity, navigate, locating, setCity, mapFocus, setMapFocus, radiusKm, setRadiusKm, showToast } = useApp();
   // Wejście z karuzeli „Na dziś" pokazuje tylko jej pozycje; przy wyjściu z mapy czyścimy skupienie.
   useEffect(() => () => setMapFocus(null), [setMapFocus]);
   // Mapa: trzy typy treści — Wydarzenia (z datą/popularne/kategoriami) / Promocje / Lokale.
@@ -140,7 +140,7 @@ export function MapScreen() {
 
   return (
     <div className="relative h-full w-full">
-      <MapView markers={markers} userCoords={here} selectedId={selectedId} onSelect={(m) => { setSelectedId(m.id); setCarouselClosed(false); }} />
+      <MapView markers={markers} userCoords={here} selectedId={selectedId} radiusKm={radiusKm} onSelect={(m) => { setSelectedId(m.id); setCarouselClosed(false); }} />
 
       {/* Górne filtry — Wydarzenia (data/popularne/kategorie) / Promocje / Lokale */}
       <div data-swipe-ignore className="pointer-events-none absolute inset-x-0 top-0 z-[500] space-y-2 p-3">
@@ -223,6 +223,17 @@ export function MapScreen() {
           </div>
         )}
       </div>
+
+      {/* Promień wyszukiwania — szybki chip (cykl 5→15→30→50 km); dotyk dopasowuje okrąg na mapie */}
+      {!locOpen && (
+        <button
+          onClick={() => { const r = nextRadius(radiusKm); setRadiusKm(r); showToast(`Zasięg wyszukiwania: ${formatRadius(r)}`, '🎯'); }}
+          aria-label={`Promień wyszukiwania: ${formatRadius(radiusKm)}`}
+          className="absolute bottom-[252px] right-3 z-[500] inline-flex items-center gap-1.5 rounded-full bg-paper py-2 pl-2.5 pr-3 text-[12.5px] font-extrabold text-ink shadow-float active:scale-95"
+        >
+          <Target size={15} className="text-coral" /> {formatRadius(radiusKm)}
+        </button>
+      )}
 
       {/* Moja lokalizacja — chowa się razem z karuzelą, gdy otwarty panel lokalizacji */}
       {!locOpen && (

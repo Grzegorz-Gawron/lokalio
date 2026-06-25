@@ -29,6 +29,7 @@ export function LeafletMap({
   const mapRef = useRef<L.Map | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
   const radiusRef = useRef<L.Circle | null>(null);
+  const prevRadiusRef = useRef<number | undefined>(undefined);
   const userMarkerRef = useRef<L.Marker | null>(null);
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
@@ -89,7 +90,7 @@ export function LeafletMap({
     });
   }, [markers, selectedId]);
 
-  // radius
+  // radius — okrąg zasięgu rysowany dla każdego progu (5/15/30/50 km)
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -97,15 +98,22 @@ export function LeafletMap({
       radiusRef.current.remove();
       radiusRef.current = null;
     }
-    if (radiusKm && radiusKm <= 25) {
-      radiusRef.current = L.circle([userCoords.lat, userCoords.lng], {
-        radius: radiusKm * 1000,
-        color: '#FF5A4D',
-        weight: 1.5,
-        fillColor: '#FF5A4D',
-        fillOpacity: 0.05,
-      }).addTo(map);
+    if (!radiusKm) { prevRadiusRef.current = radiusKm; return; }
+    const circle = L.circle([userCoords.lat, userCoords.lng], {
+      radius: radiusKm * 1000,
+      color: '#FF5A4D',
+      weight: 1.5,
+      fillColor: '#FF5A4D',
+      fillOpacity: 0.05,
+    }).addTo(map);
+    radiusRef.current = circle;
+    // Po ZMIANIE promienia (chip na mapie) dopasuj widok, by cały okrąg był widoczny —
+    // przy 30/50 km inaczej wychodzi poza ekran. Wejście/zmiana lokalizacji nie rusza zoomu
+    // (zostawiamy poziom ulic z pinezkami; okrąg „rozwija" dopiero chip).
+    if (prevRadiusRef.current !== undefined && prevRadiusRef.current !== radiusKm) {
+      map.fitBounds(circle.getBounds(), { padding: [28, 28], maxZoom: 15, animate: true });
     }
+    prevRadiusRef.current = radiusKm;
   }, [radiusKm, userCoords.lat, userCoords.lng]);
 
   // recenter gdy zmieni się lokalizacja użytkownika

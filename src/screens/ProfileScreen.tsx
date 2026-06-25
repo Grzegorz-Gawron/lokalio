@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Heart, Ticket, MapPin, Eye, ChevronRight, LogOut, Store, Mail, Check, LogIn, Moon, Pencil, UserPlus, Bell } from 'lucide-react';
+import { Heart, Ticket, MapPin, Eye, ChevronRight, LogOut, Store, Mail, Check, LogIn, Moon, Pencil, UserPlus, Bell, Target } from 'lucide-react';
 import { useApp } from '../store/AppContext';
 import { getEnabledOAuth } from '../lib/backend';
 import { BADGES, organizerById, venueById, offerById, eventById, offersForVenue, activeVenues } from '../data/seed';
 import { CATEGORY_META } from '../theme';
 import { isToday } from '../lib/format';
+import { formatRadius, RADIUS_STEPS } from '../lib/geo';
 import { hashId } from '../lib/photos';
 import { cx, ProgressRing } from '../components/ui';
 import { LocationSheet } from '../components/LocationSheet';
@@ -25,7 +26,7 @@ function timeAgo(at: number): string {
 }
 
 export function ProfileScreen() {
-  const { user, stats, currentCity, checkinHistory, redeemedOfferIds, activeVouchers, navigate, resetApp, isFollowing, toggleFollow, authEnabled, account, loginWithEmail, loginWithPassword, registerWithPassword, loginWithProvider, logout, showToast, theme, toggleTheme, unseenNotifs } = useApp();
+  const { user, stats, currentCity, checkinHistory, redeemedOfferIds, activeVouchers, navigate, resetApp, isFollowing, toggleFollow, authEnabled, account, loginWithEmail, loginWithPassword, registerWithPassword, loginWithProvider, logout, showToast, theme, toggleTheme, unseenNotifs, radiusKm, setRadiusKm } = useApp();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [locOpen, setLocOpen] = useState(false);
@@ -249,6 +250,28 @@ export function ProfileScreen() {
           sub={user.usesRealLocation ? 'Twoja lokalizacja (GPS)' : `${currentCity.name}${user.district ? ` · ${user.district}` : ''}`}
           onClick={() => setLocOpen(true)}
         />
+        {/* Promień wyszukiwania — trwały wybór (te same progi co chip na mapie) */}
+        <div className="rounded-card bg-paper p-3.5 shadow-card">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-coral/12 text-coral"><Target size={18} /></span>
+            <div className="flex-1">
+              <p className="text-[14px] font-bold text-ink">Promień wyszukiwania</p>
+              <p className="text-[12px] text-subtle">Jak daleko szukać wydarzeń i ofert</p>
+            </div>
+          </div>
+          <div className="mt-3 flex gap-2">
+            {RADIUS_STEPS.map((r) => (
+              <button
+                key={r}
+                onClick={() => setRadiusKm(r)}
+                aria-pressed={radiusKm === r}
+                className={cx('flex-1 rounded-xl py-2 text-[13px] font-bold transition active:scale-95', radiusKm === r ? 'bg-coral text-white shadow-coral' : 'bg-black/5 text-ink/70')}
+              >
+                {formatRadius(r)}
+              </button>
+            ))}
+          </div>
+        </div>
         <Row icon={Bell} label="Powiadomienia" sub={unseenNotifs > 0 ? `${unseenNotifs} nowych od obserwowanych` : 'Co chcesz dostawać'} badge={unseenNotifs} onClick={() => navigate({ name: 'notifications' })} />
         <Row icon={UserPlus} label="Zaproś znajomych" sub="Wyślij im link do aplikacji" onClick={inviteFriends} />
         <Row icon={Store} label="Panel firmowy" sub="Zarządzaj lokalem lub wydarzeniami" onClick={() => navigate({ name: 'owner' })} />

@@ -29,9 +29,36 @@ function styleDark(map: mapboxgl.Map) {
 }
 const SRC = 'lokalio-places';
 const USER_SRC = 'user-loc';
+const RADIUS_SRC = 'radius-area';
 
 function userPoint(c: LatLng): GeoJSON.FeatureCollection {
   return { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [c.lng, c.lat] }, properties: {} }] };
+}
+
+// Stopnie szer./dł. na km dla danej szerokości (do okręgu i bboxa w metrach).
+function degPerKm(lat: number): { latDeg: number; lngDeg: number } {
+  return { latDeg: 1 / 110.574, lngDeg: 1 / (111.32 * Math.cos((lat * Math.PI) / 180)) };
+}
+
+// Wielokąt przybliżający okrąg o promieniu km wokół środka — Mapbox nie ma okręgu w metrach,
+// więc zasięg rysujemy jako fill+line z 64-kąta.
+function radiusPolygon(center: LatLng, km: number): GeoJSON.FeatureCollection {
+  if (!km) return { type: 'FeatureCollection', features: [] };
+  const { latDeg, lngDeg } = degPerKm(center.lat);
+  const ring: [number, number][] = [];
+  for (let i = 0; i <= 64; i++) {
+    const a = (i / 64) * 2 * Math.PI;
+    ring.push([center.lng + km * lngDeg * Math.cos(a), center.lat + km * latDeg * Math.sin(a)]);
+  }
+  return { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Polygon', coordinates: [ring] }, properties: {} }] };
+}
+
+function radiusBounds(center: LatLng, km: number): [[number, number], [number, number]] {
+  const { latDeg, lngDeg } = degPerKm(center.lat);
+  return [
+    [center.lng - km * lngDeg, center.lat - km * latDeg],
+    [center.lng + km * lngDeg, center.lat + km * latDeg],
+  ];
 }
 
 // Pojedynczy znacznik = kółko w kolorze kategorii z emoji (renderowane na canvasie → ikona warstwy).
@@ -94,6 +121,7 @@ export function MapboxMap({
   userCoords,
   selectedId,
   onSelect,
+  radiusKm,
   token,
   dark,
 }: {
@@ -112,6 +140,9 @@ export function MapboxMap({
   markersRef.current = markers;
   const selRef = useRef(selectedId);
   selRef.current = selectedId;
+  const radiusValRef = useRef(radiusKm);
+  radiusValRef.current = radiusKm;
+  const prevRadiusRef = useRef<number | undefined>(undefined);
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
 
@@ -139,6 +170,11 @@ export function MapboxMap({
 
       // Ciemny motyw → tło w kolorze kart + jasnoszara siatka ulic.
       if (dark) styleDark(map);
+
+      // Okrąg zasięgu (na samym dole — pod kropką „Ty" i pinezkami). Promień w metrach jako wielokąt.
+      map.addSource(RADIUS_SRC, { type: 'geojson', data: radiusPolygon(userCoords, radiusValRef.current ?? 0) });
+      map.addLayer({ id: 'radius-fill', type: 'fill', source: RADIUS_SRC, paint: { 'fill-color': '#FF5A4D', 'fill-opacity': 0.05 } });
+      map.addLayer({ id: 'radius-line', type: 'line', source: RADIUS_SRC, paint: { 'line-color': '#FF5A4D', 'line-width': 1.5, 'line-opacity': 0.6 } });
 
       // Kropka „Ty" jako warstwa mapy (pod klastrem) — żeby liczba w klastrze była zawsze widoczna.
       map.addSource(USER_SRC, { type: 'geojson', data: userPoint(userCoords) });
@@ -233,6 +269,7 @@ export function MapboxMap({
         map.on('mouseleave', lyr, () => { map.getCanvas().style.cursor = ''; });
       }
 
+      prevRadiusRef.current = radiusValRef.current; // baza dla wykrycia zmiany promienia (chip)
       loadedRef.current = true;
       map.resize();
     });
@@ -268,6 +305,18 @@ export function MapboxMap({
     map.easeTo({ center: [userCoords.lng, userCoords.lat], duration: 500 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userCoords.lat, userCoords.lng]);
+
+  // okrąg zasięgu — aktualizacja środka/promienia; po ZMIANIE promienia (chip) dopasuj widok
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !loadedRef.current) return;
+    (map.getSource(RADIUS_SRC) as mapboxgl.GeoJSONSource | undefined)?.setData(radiusPolygon(userCoords, radiusKm ?? 0));
+    if (radiusKm && prevRadiusRef.current !== undefined && prevRadiusRef.current !== radiusKm) {
+      map.fitBounds(radiusBounds(userCoords, radiusKm), { padding: 28, maxZoom: 15, duration: 500 });
+    }
+    prevRadiusRef.current = radiusKm;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [radiusKm, userCoords.lat, userCoords.lng]);
 
   // zaznaczenie → powiększ pin + przesuń mapę
   useEffect(() => {
