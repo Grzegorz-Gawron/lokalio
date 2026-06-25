@@ -32,6 +32,34 @@ export function formatRadius(km: number): string {
   return Number.isInteger(km) ? `${km} km` : `${km.toFixed(1).replace('.', ',')} km`;
 }
 
+/**
+ * Konfigurowalny promień wyszukiwania — JEDNO źródło prawdy dla mapy i feedu
+ * (zastępuje dawny, nieużywany `filters.maxKm`). Cztery progi, domyślnie 15 km.
+ */
+export const RADIUS_STEPS = [5, 15, 30, 50] as const;
+export type RadiusKm = (typeof RADIUS_STEPS)[number];
+export const DEFAULT_RADIUS_KM: RadiusKm = 15;
+
+/** Następny próg w cyklu 5→15→30→50→5 (szybki chip na mapie). */
+export function nextRadius(km: number): RadiusKm {
+  const i = RADIUS_STEPS.indexOf(km as RadiusKm);
+  return RADIUS_STEPS[(i + 1) % RADIUS_STEPS.length];
+}
+
+/** Kolejny WIĘKSZY próg (auto-poszerzanie); zwraca null, gdy już maksymalny. */
+export function widerRadius(km: number): RadiusKm | null {
+  const i = RADIUS_STEPS.indexOf(km as RadiusKm);
+  return i >= 0 && i < RADIUS_STEPS.length - 1 ? RADIUS_STEPS[i + 1] : null;
+}
+
+/** Sanityzacja zapisanej/legacy wartości do najbliższego dozwolonego progu. */
+export function snapRadius(km: number): RadiusKm {
+  return RADIUS_STEPS.reduce<RadiusKm>(
+    (best, s) => (Math.abs(s - km) < Math.abs(best - km) ? s : best),
+    DEFAULT_RADIUS_KM,
+  );
+}
+
 /** Przybliżony czas spacerem (~4,5 km/h). */
 export function walkMinutes(km: number): number {
   return Math.max(1, Math.round((km / 4.5) * 60));

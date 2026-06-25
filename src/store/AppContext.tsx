@@ -23,6 +23,7 @@ import type {
 import type { AccountType, OrganizerCategoryKey } from '../lib/business';
 import { EVENTS, OFFERS, eventsForCity, offersForCity, venuesForCity, makeDefaultUser, venueById, offerById, registerLiveData, registerOwnerVenues, registerOwnerOffers, registerOwnerEvents, registerPublishedEvents, publishedEventsForCity, activeVenues, type LiveData } from '../data/seed';
 import { loadPublishedEvents } from '../lib/published';
+import { snapRadius, DEFAULT_RADIUS_KM } from '../lib/geo';
 import { CITIES, DEFAULT_CITY_ID, cityById, cityIdOf, nearestCity, type City } from '../data/cities';
 import { loadLivePlaces } from '../lib/places';
 import { buildNotifications, NOTIF_SEEN_KEY, type NotifItem } from '../lib/notifications';
@@ -58,7 +59,6 @@ export type When = 'today' | 'week' | 'all';
 
 export interface Filters {
   category: CategoryKey | 'all';
-  maxKm: number;
   when: When;
   query: string;
   freeOnly: boolean;
@@ -134,6 +134,10 @@ interface Ctx {
   back: () => void;
 
   setFilters: (patch: Partial<Filters>) => void;
+
+  // promień wyszukiwania (km) — jedno źródło prawdy dla mapy i feedu
+  radiusKm: number;
+  setRadiusKm: (km: number) => void;
 
   onboard: (data: OnboardData) => void;
   editProfile: (patch: Partial<Pick<User, 'name' | 'age' | 'gender' | 'district' | 'preferredCategories' | 'avatar'>>) => void;
@@ -232,6 +236,7 @@ interface Persisted {
   ownerVenueIds: string[];
   ownerLoggedIn: boolean;
   ownerBusiness: OwnerBusiness | null;
+  radiusKm: number;
 }
 
 function loadPersisted(): Partial<Persisted> {
@@ -259,11 +264,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [stack, setStack] = useState<Route[]>([]);
   const [filters, setFiltersState] = useState<Filters>({
     category: 'all',
-    maxKm: 5,
     when: 'today',
     query: '',
     freeOnly: false,
   });
+  // Promień wyszukiwania — jedno źródło prawdy dla mapy i feedu (zastępuje dawny filters.maxKm).
+  const [radiusKm, setRadiusKmState] = useState<number>(snapRadius(initial.current.radiusKm ?? DEFAULT_RADIUS_KM));
+  const setRadiusKm = useCallback((km: number) => setRadiusKmState(snapRadius(km)), []);
   const [activeVouchers, setActiveVouchers] = useState<ActiveVoucher[]>(
     initial.current.activeVouchers ?? [],
   );
@@ -313,7 +320,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Persist
   useEffect(() => {
-    const snap: Persisted = { user, currentCity, activeVouchers, redeemedOfferIds, stats, checkinHistory, ownerEvents, ownerOffers, ownerVenues, ownerVenueIds, ownerLoggedIn, ownerBusiness };
+    const snap: Persisted = { user, currentCity, activeVouchers, redeemedOfferIds, stats, checkinHistory, ownerEvents, ownerOffers, ownerVenues, ownerVenueIds, ownerLoggedIn, ownerBusiness, radiusKm };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(snap));
     } catch {
@@ -335,7 +342,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         /* ignore */
       }
     }
-  }, [user, currentCity, activeVouchers, redeemedOfferIds, stats, checkinHistory, ownerEvents, ownerOffers, ownerVenues, ownerVenueIds, ownerLoggedIn, ownerBusiness]);
+  }, [user, currentCity, activeVouchers, redeemedOfferIds, stats, checkinHistory, ownerEvents, ownerOffers, ownerVenues, ownerVenueIds, ownerLoggedIn, ownerBusiness, radiusKm]);
 
   // Rejestruj lokale dodane przez właściciela, by rozwiązywały się w całej aplikacji (mapa, feed, lookupy).
   useEffect(() => { registerOwnerVenues(ownerVenues); }, [ownerVenues]);
@@ -902,6 +909,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     navigate,
     back,
     setFilters,
+    radiusKm,
+    setRadiusKm,
     onboard,
     editProfile,
     resetApp,
