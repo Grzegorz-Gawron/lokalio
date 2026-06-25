@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import 'leaflet/dist/leaflet.css';
 import './index.css';
 import * as Sentry from '@sentry/react';
+import { Analytics } from '@vercel/analytics/react';
 import App from './App';
 import { AppProvider } from './store/AppContext';
 import { initAnalytics } from './lib/analytics';
@@ -31,6 +32,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <Sentry.ErrorBoundary fallback={<ErrorFallback />}>
     <AppProvider>
       <App />
+      <Analytics />
     </AppProvider>
   </Sentry.ErrorBoundary>,
 );
