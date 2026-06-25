@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState, useEffect } from 'react';
 import { ChevronLeft, Search, X } from 'lucide-react';
 import { useApp } from '../store/AppContext';
+import { track } from '../lib/analytics';
 import { CATEGORY_META } from '../theme';
 import { cx } from '../components/ui';
 
@@ -45,6 +46,13 @@ export function SearchScreen() {
   }, [nq, events, offers, venues]);
 
   const total = vHits.length + eHits.length + oHits.length;
+
+  // Analityka: zarejestruj wyszukiwanie z debounce (nie na każdą literę).
+  useEffect(() => {
+    if (nq.length < 2) return;
+    const t = setTimeout(() => track('search', { query: nq, results: total }), 600);
+    return () => clearTimeout(t);
+  }, [nq, total]);
 
   const Row = ({ h }: { h: Hit }) => (
     <button onClick={() => navigate({ name: h.route, id: h.refId })} className="flex w-full items-center gap-3 rounded-card bg-paper p-3 text-left shadow-card active:scale-[0.99]">

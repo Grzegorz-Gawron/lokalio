@@ -23,6 +23,7 @@ import type {
 import type { AccountType, OrganizerCategoryKey } from '../lib/business';
 import { EVENTS, OFFERS, eventsForCity, offersForCity, venuesForCity, makeDefaultUser, venueById, offerById, registerLiveData, registerOwnerVenues, registerOwnerOffers, registerOwnerEvents, registerPublishedEvents, publishedEventsForCity, activeVenues, DEMO_NEARBY_EVENT, makeDemoNearbyEvent, registerDemoEvents, type LiveData } from '../data/seed';
 import { loadPublishedEvents } from '../lib/published';
+import { track, identifyUser, resetAnalytics } from '../lib/analytics';
 import { snapRadius, DEFAULT_RADIUS_KM } from '../lib/geo';
 import { CITIES, DEFAULT_CITY_ID, cityById, cityIdOf, nearestCity, type City } from '../data/cities';
 import { loadLivePlaces } from '../lib/places';
@@ -270,7 +271,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   });
   // Promień wyszukiwania — jedno źródło prawdy dla mapy i feedu (zastępuje dawny filters.maxKm).
   const [radiusKm, setRadiusKmState] = useState<number>(snapRadius(initial.current.radiusKm ?? DEFAULT_RADIUS_KM));
-  const setRadiusKm = useCallback((km: number) => setRadiusKmState(snapRadius(km)), []);
+  const setRadiusKm = useCallback((km: number) => { const r = snapRadius(km); track('radius_changed', { radiusKm: r }); setRadiusKmState(r); }, []);
   const [activeVouchers, setActiveVouchers] = useState<ActiveVoucher[]>(
     initial.current.activeVouchers ?? [],
   );
@@ -366,6 +367,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
     const handle = async (info: SessionInfo | null) => {
       setAccount(info);
+      if (info) identifyUser(info.userId); // spina anonimową sesję PostHog z kontem (bez maila/PII)
       // logowanie bez wcześniejszego profilu lokalnego → wczytaj profil z bazy
       if (info && !userRef.current) {
         const p = await loadProfile(info.userId);
@@ -503,6 +505,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const route = stack.length ? stack[stack.length - 1] : null;
 
   const setFilters = useCallback((patch: Partial<Filters>) => {
+    track('filter_changed', patch as Record<string, unknown>);
     setFiltersState((f) => ({ ...f, ...patch }));
   }, []);
 
@@ -577,6 +580,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const setCity = useCallback((cityId: string) => {
     const c = cityById(cityId);
+    track('city_changed', { cityId });
     setCurrentCity(cityId);
     setUser((u) => (u ? { ...u, coords: c.center, district: c.districts[0]?.district ?? '', usesRealLocation: false } : u));
   }, []);
@@ -617,6 +621,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           points: has ? u.points : u.points + 2,
         };
       });
+      track('event_saved', { eventId: id, saved: !user?.savedEventIds.includes(id) });
       showToast(
         user?.savedEventIds.includes(id) ? 'Usunięto z zapisanych' : 'Zapisano · przypomnimy Ci',
         user?.savedEventIds.includes(id) ? '🗑️' : '💛',
@@ -659,6 +664,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           points: has ? u.points : u.points + 3,
         };
       });
+      track('event_attend', { eventId: id, attending: !wasAttending });
       showToast(wasAttending ? 'Wypisano z udziału' : 'Weźmiesz udział 🎉', wasAttending ? '🗑️' : '🎉');
     },
     [showToast, user],
@@ -684,6 +690,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           points: has ? u.points : u.points + 3,
         };
       });
+      track('org_followed', { orgId, following: !user?.followedOrganizerIds.includes(orgId) });
       showToast(
         user?.followedOrganizerIds.includes(orgId) ? 'Przestałeś obserwować' : 'Obserwujesz · damy znać',
         user?.followedOrganizerIds.includes(orgId) ? '🔕' : '🔔',
@@ -731,6 +738,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setStats((s) => ({ ...s, checkins: s.checkins + 1 }));
       setCheckinHistory((h) => [{ venueId, at: Date.now() }, ...h].slice(0, 50));
       if (accountRef.current) dbCheckin(accountRef.current.userId, venueId);
+      track('venue_checkin', { venueId });
       addPoints(15);
       showToast(`Zameldowano w ${v?.name ?? 'lokalu'} · +15 pkt`, '📍');
     },
@@ -761,6 +769,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           : [...list, { offerId, activatedAt: Date.now(), durationSec, code: makeVoucherCode(offerId) }],
       );
       if (accountRef.current) dbActivateVoucher(accountRef.current.userId, offerId, durationSec);
+      track('voucher_activated', { offerId });
     },
     [ownerOffers],
   );
@@ -872,7 +881,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [account, ownerLoggedIn]);
 
   // ---- share ----
-  const openShare = useCallback((title: string) => setShareTitle(title), []);
+  const openShare = useCallback((title: string) => { track('share_opened', { title }); setShareTitle(title); }, []);
   const closeShare = useCallback(() => setShareTitle(null), []);
 
   // ---- konto (Supabase) ----
@@ -883,6 +892,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     await signOut();
     setAccount(null);
+    resetAnalytics(); // kolejne zdarzenia znów anonimowe
     showToast('Wylogowano', '👋');
   }, [showToast]);
 
