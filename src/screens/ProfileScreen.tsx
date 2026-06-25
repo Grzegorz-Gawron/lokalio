@@ -1,0 +1,373 @@
+import { useState, useEffect } from 'react';
+import { Heart, Ticket, MapPin, Eye, ChevronRight, LogOut, Store, Mail, Check, LogIn, Moon, Pencil, UserPlus, Bell } from 'lucide-react';
+import { useApp } from '../store/AppContext';
+import { getEnabledOAuth } from '../lib/backend';
+import { BADGES, organizerById, venueById, offerById, eventById, offersForVenue, activeVenues } from '../data/seed';
+import { CATEGORY_META } from '../theme';
+import { isToday } from '../lib/format';
+import { hashId } from '../lib/photos';
+import { cx, ProgressRing } from '../components/ui';
+import { LocationSheet } from '../components/LocationSheet';
+import type { Badge, Organizer } from '../types';
+
+// Szacunkowa oszczędność z wykorzystanego bonu (deterministyczna, demo).
+const savingsOf = (id: string) => 8 + (hashId(id + 'zl') % 40);
+const BADGE_UNIT: Record<Badge['metric'], string> = { checkins: 'lokali', vouchers: 'oferty', saves: 'wydarzeń', follows: 'miejsc', events: 'pkt' };
+
+function timeAgo(at: number): string {
+  const min = Math.round((Date.now() - at) / 60000);
+  if (min < 1) return 'przed chwilą';
+  if (min < 60) return `${min} min temu`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `${h} godz. temu`;
+  const d = Math.round(h / 24);
+  return d === 1 ? 'wczoraj' : `${d} dni temu`;
+}
+
+export function ProfileScreen() {
+  const { user, stats, currentCity, checkinHistory, redeemedOfferIds, activeVouchers, navigate, resetApp, isFollowing, toggleFollow, authEnabled, account, loginWithEmail, loginWithPassword, registerWithPassword, loginWithProvider, logout, showToast, theme, toggleTheme, unseenNotifs } = useApp();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [locOpen, setLocOpen] = useState(false);
+  const [sentMsg, setSentMsg] = useState('');
+  const [sending, setSending] = useState(false);
+  const [authBusy, setAuthBusy] = useState(false);
+  const [confirmLogout, setConfirmLogout] = useState(false);
+  const [oauth, setOauth] = useState<{ google: boolean; apple: boolean }>({ google: false, apple: false });
+  useEffect(() => { if (authEnabled && !account) getEnabledOAuth().then(setOauth); }, [authEnabled, account]);
+  const social = async (p: 'google' | 'apple') => {
+    const { error } = await loginWithProvider(p);
+    if (error) showToast(/not enabled|disabled|provider/i.test(error) ? `Logowanie ${p === 'google' ? 'Google' : 'Apple'} nie jest jeszcze włączone w Supabase.` : error, '⚠️');
+  };
+  const authMsg = (e: string) => {
+    if (/invalid login credentials/i.test(e)) return 'Błędny e-mail lub hasło.';
+    if (/already registered|already exists/i.test(e)) return 'Konto z tym e-mailem już istnieje — zaloguj się.';
+    if (/at least 6|password should be/i.test(e)) return 'Hasło musi mieć co najmniej 6 znaków.';
+    if (/email not confirmed/i.test(e)) return 'Najpierw potwierdź e-mail (link w skrzynce).';
+    return e;
+  };
+  const sendLink = async () => {
+    if (!email.trim() || sending) return;
+    setSending(true);
+    const { error } = await loginWithEmail(email);
+    setSending(false);
+    if (error) showToast(`Błąd: ${error}`, '⚠️');
+    else setSentMsg(`Wysłaliśmy link logowania na ${email}. Kliknij go, aby się zalogować.`);
+  };
+  const submitPassword = async (mode: 'signin' | 'signup') => {
+    if (!email.trim() || !password.trim() || authBusy) return;
+    setAuthBusy(true);
+    if (mode === 'signin') {
+      const { error } = await loginWithPassword(email, password);
+      setAuthBusy(false);
+      if (error) showToast(authMsg(error), '⚠️'); else showToast('Zalogowano', '✅');
+    } else {
+      const { error, needsConfirm } = await registerWithPassword(email, password);
+      setAuthBusy(false);
+      if (error) showToast(authMsg(error), '⚠️');
+      else if (needsConfirm) setSentMsg(`Wysłaliśmy link na ${email}. Potwierdź konto, aby się zalogować.`);
+      else showToast('Konto założone — zalogowano', '🎉');
+    }
+  };
+  const inviteFriends = async () => {
+    const url = window.location.origin;
+    const text = 'Sprawdź Lokalio — odkrywaj, co dzieje się teraz w Twojej okolicy: wydarzenia, lokale, oferty i promocje. 👇';
+    const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
+    if (nav.share) {
+      try {
+        await nav.share({ title: 'Lokalio — Twoje miasto żyje', text, url });
+      } catch {
+        /* użytkownik anulował udostępnianie */
+      }
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(`${text} ${url}`);
+      showToast('Link skopiowany — wyślij znajomym', '🔗');
+    } catch {
+      showToast(url, '🔗');
+    }
+  };
+
+  if (!user) return null;
+
+  const level = Math.floor(user.points / 100) + 1;
+  const intoLevel = user.points % 100;
+  const genderLabel = user.gender === 'k' ? 'Kobieta' : user.gender === 'm' ? 'Mężczyzna' : 'Inna';
+  const followed = user.followedOrganizerIds.map((id) => organizerById(id)).filter((o): o is Organizer => !!o);
+
+  // Podlinijki kafli statystyk
+  const weekCheckins = checkinHistory.filter((c) => Date.now() - c.at < 7 * 86400000).length;
+  const savedZl = redeemedOfferIds.reduce((s, id) => s + savingsOf(id), 0);
+  // „Promocje" = wszystkie oferty z ekranu „Moje oferty" (aktywne + wykorzystane + zapisane, bez duplikatów),
+  // liczone tak jak tam — tylko te, które realnie istnieją (offerById), by liczba zgadzała się z zakładkami.
+  const myOffersCount = [...new Set([...activeVouchers.map((a) => a.offerId), ...redeemedOfferIds, ...user.savedOfferIds])].filter((id) => offerById(id)).length;
+  // „Wydarzenia" i „Obserwowane" — liczymy tylko realnie istniejące pozycje (jak na ekranach docelowych);
+  // followedOrganizerIds zawiera też ID lokali bez organizatora (obserwacja samego lokalu).
+  const savedEventCount = user.savedEventIds.filter((id) => eventById(id)).length;
+  const followCount = user.followedOrganizerIds.filter((id) => organizerById(id) || venueById(id)).length;
+  const todaySaved = user.savedEventIds.filter((id) => { const e = eventById(id); return e ? isToday(e.dateIso) : false; }).length;
+  const newPromos = followed.reduce((s, o) => {
+    if (o.kind !== 'lokal') return s;
+    const v = activeVenues().find((vv) => vv.organizerId === o.id);
+    return s + (v ? offersForVenue(v.id).length : 0);
+  }, 0);
+
+  const badgeProgress = (b: Badge): number => {
+    switch (b.metric) {
+      case 'checkins': return stats.checkins;
+      case 'vouchers': return stats.vouchersUsed;
+      case 'saves': return user.savedEventIds.length;
+      case 'follows': return user.followedOrganizerIds.length;
+      case 'events': return user.points;
+    }
+  };
+
+  return (
+    <div className="h-full overflow-y-auto no-scrollbar pb-6">
+      {/* Header */}
+      <div className="bg-gradient-to-b from-coral/15 to-transparent px-4 pb-2 pt-6">
+        <div className="flex items-center gap-4">
+          <span className="flex h-16 w-16 items-center justify-center rounded-full bg-coral/15 text-3xl">
+            {user.avatar || (user.gender === 'k' ? '👩' : user.gender === 'm' ? '🧑' : '🙂')}
+          </span>
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-[22px] font-extrabold tracking-tight text-ink">{user.name}</h1>
+            <p className="truncate text-[13px] text-subtle">
+              {user.age} lat · {genderLabel}{user.district ? ` · ${user.district}` : ''}
+            </p>
+          </div>
+          <button
+            onClick={() => navigate({ name: 'editProfile' })}
+            aria-label="Edytuj profil"
+            className="flex shrink-0 items-center gap-1.5 rounded-full bg-paper px-3 py-2 text-[12.5px] font-bold text-coral shadow-sm active:scale-95"
+          >
+            <Pencil size={14} /> Edytuj
+          </button>
+        </div>
+
+        {/* Poziom / punkty */}
+        <div className="mt-4 rounded-card bg-paper p-4 shadow-card">
+          <div className="flex items-center justify-between">
+            <span className="text-[14px] font-bold text-ink">⭐ Poziom {level}</span>
+            <span className="text-[13px] font-semibold text-coral">{user.points} pkt</span>
+          </div>
+          <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-black/8">
+            <div className="h-full rounded-full bg-coral transition-all" style={{ width: `${intoLevel}%` }} />
+          </div>
+          <p className="mt-1.5 text-[12px] text-subtle">Jeszcze {100 - intoLevel} pkt do poziomu {level + 1}</p>
+        </div>
+
+        {/* Zainteresowania (napędzają „Dla Ciebie" i agenta) */}
+        {user.preferredCategories.length > 0 && (
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            {user.preferredCategories.map((c) => (
+              <span key={c} className="inline-flex items-center gap-1 rounded-full bg-paper px-2.5 py-1 text-[11.5px] font-semibold text-ink/75 shadow-sm">
+                <span>{CATEGORY_META[c].emoji}</span> {CATEGORY_META[c].label}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Konto (Supabase) */}
+      {authEnabled && (
+        <div className="px-4 pt-3">
+          {account ? (
+            <div className="rounded-card bg-paper p-3.5 shadow-card">
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-success/12 text-success"><Check size={18} /></span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[14px] font-bold text-ink">Zalogowano</p>
+                  <p className="truncate text-[12.5px] text-subtle">{account.email ?? 'konto Lokalio'}</p>
+                </div>
+                {!confirmLogout && <button onClick={() => setConfirmLogout(true)} className="rounded-full bg-black/5 px-3 py-2 text-[12px] font-bold text-ink/60 active:scale-95">Wyloguj</button>}
+              </div>
+              {confirmLogout && (
+                <div className="mt-3 flex items-center gap-2">
+                  <p className="flex-1 text-[12.5px] font-semibold text-ink/70">Na pewno chcesz się wylogować?</p>
+                  <button onClick={() => setConfirmLogout(false)} className="rounded-full bg-black/5 px-3 py-1.5 text-[12px] font-bold text-ink/60 active:scale-95">Anuluj</button>
+                  <button onClick={logout} className="rounded-full bg-coral px-3 py-1.5 text-[12px] font-bold text-white shadow-coral active:scale-95">Wyloguj</button>
+                </div>
+              )}
+            </div>
+          ) : sentMsg ? (
+            <div className="rounded-card bg-paper p-4 text-center shadow-card">
+              <div className="text-3xl">📧</div>
+              <p className="mt-1 text-[14px] font-bold text-ink">Sprawdź skrzynkę</p>
+              <p className="mt-0.5 text-[12.5px] text-subtle">{sentMsg}</p>
+              <button onClick={() => setSentMsg('')} className="mt-2 text-[12px] font-bold text-coral">Wróć</button>
+            </div>
+          ) : (
+            <div className="rounded-card bg-paper p-4 shadow-card">
+              <p className="flex items-center gap-2 text-[14px] font-bold text-ink"><LogIn size={16} className="text-coral" /> Załóż konto / zaloguj się</p>
+              <p className="mt-0.5 text-[12.5px] text-subtle">Profil, punkty i Twoje treści zapiszą się w chmurze — z dostępem z wielu urządzeń.</p>
+              {(oauth.google || oauth.apple) && (
+                <>
+                  <div className="mt-3 space-y-2">
+                    {oauth.google && (
+                      <button onClick={() => social('google')} className="flex w-full items-center justify-center gap-2 rounded-xl border border-black/10 bg-paper py-2.5 text-[13.5px] font-bold text-ink active:scale-95">
+                        <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.4 29.3 35 24 35c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.7-8 19.7-20 0-1.3-.1-2.5-.4-3.5z" /><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 16 19 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" /><path fill="#4CAF50" d="M24 44c5.2 0 10-2 13.6-5.2l-6.3-5.3C29.2 35.1 26.7 36 24 36c-5.3 0-9.7-3.6-11.3-8.4l-6.5 5C9.5 39.6 16.2 44 24 44z" /><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.2-4.1 5.5l6.3 5.3C39.5 41.4 44 35.5 44 24c0-1.3-.1-2.5-.4-3.5z" /></svg>
+                        Kontynuuj z Google
+                      </button>
+                    )}
+                    {oauth.apple && (
+                      <button onClick={() => social('apple')} className="flex w-full items-center justify-center gap-2 rounded-xl bg-ink py-2.5 text-[13.5px] font-bold text-white active:scale-95">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.365 1.43c0 1.14-.467 2.22-1.215 3.01-.8.85-2.09 1.5-3.18 1.42-.13-1.09.42-2.24 1.13-2.98.79-.83 2.17-1.46 3.27-1.45zM20.5 17.04c-.55 1.27-.82 1.84-1.53 2.96-.99 1.56-2.39 3.5-4.12 3.51-1.54.02-1.94-1-4.03-.99-2.09.01-2.53 1.01-4.07.99-1.73-.02-3.05-1.77-4.04-3.33-2.77-4.36-3.06-9.48-1.35-12.2 1.21-1.93 3.13-3.06 4.93-3.06 1.83 0 2.98 1.01 4.49 1.01 1.47 0 2.36-1.01 4.48-1.01 1.6 0 3.3.87 4.51 2.38-3.96 2.17-3.32 7.82.25 9.78z" /></svg>
+                        Kontynuuj z Apple
+                      </button>
+                    )}
+                  </div>
+                  <div className="my-3 flex items-center gap-2"><div className="h-px flex-1 bg-black/10" /><span className="text-[11px] text-subtle">lub e-mailem</span><div className="h-px flex-1 bg-black/10" /></div>
+                </>
+              )}
+              <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoComplete="email" placeholder="twój@email.pl" className="mt-2.5 w-full rounded-xl border border-black/10 bg-paper px-3.5 py-2.5 text-[14px] outline-none focus:border-coral" />
+              <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete="current-password" placeholder="Hasło (min. 6 znaków)" className="mt-2 w-full rounded-xl border border-black/10 bg-paper px-3.5 py-2.5 text-[14px] outline-none focus:border-coral" />
+              <div className="mt-2.5 flex gap-2">
+                <button onClick={() => submitPassword('signin')} disabled={authBusy} className="flex-1 rounded-xl bg-coral py-2.5 text-[13.5px] font-bold text-white shadow-coral active:scale-95 disabled:opacity-60">{authBusy ? '…' : 'Zaloguj się'}</button>
+                <button onClick={() => submitPassword('signup')} disabled={authBusy} className="flex-1 rounded-xl bg-black/5 py-2.5 text-[13.5px] font-bold text-ink/70 active:scale-95 disabled:opacity-60">Załóż konto</button>
+              </div>
+              <button onClick={sendLink} disabled={sending} className="mt-2 inline-flex items-center gap-1 text-[12px] font-bold text-coral disabled:opacity-60"><Mail size={13} /> {sending ? 'Wysyłam…' : 'lub wyślij link bez hasła'}</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Statystyki — klikalne, z podlinijką kontekstu */}
+      <div className="grid grid-cols-4 gap-2 px-4 pt-4">
+        <Stat icon={MapPin} value={stats.checkins} label="Meldunki" sub={weekCheckins > 0 ? `+${weekCheckins} w tym tyg.` : undefined} onClick={() => navigate({ name: 'checkins' })} />
+        <Stat icon={Ticket} value={myOffersCount} label="Promocje" sub={savedZl > 0 ? `Oszczędność ${savedZl} zł` : undefined} onClick={() => navigate({ name: 'savedOffers' })} />
+        <Stat icon={Heart} value={savedEventCount} label="Wydarzenia" sub={todaySaved > 0 ? `${todaySaved} już dziś` : undefined} onClick={() => navigate({ name: 'savedEvents' })} />
+        <Stat icon={Eye} value={followCount} label="Obserwowane" sub={newPromos > 0 ? `${newPromos} nowych promocji` : undefined} subTint="text-coral" onClick={() => navigate({ name: 'follows' })} />
+      </div>
+
+      {/* Skróty */}
+      <div className="mt-5 space-y-2 px-4">
+        <Row
+          icon={MapPin}
+          label="Zmień lokalizację"
+          sub={user.usesRealLocation ? 'Twoja lokalizacja (GPS)' : `${currentCity.name}${user.district ? ` · ${user.district}` : ''}`}
+          onClick={() => setLocOpen(true)}
+        />
+        <Row icon={Bell} label="Powiadomienia" sub={unseenNotifs > 0 ? `${unseenNotifs} nowych od obserwowanych` : 'Co chcesz dostawać'} badge={unseenNotifs} onClick={() => navigate({ name: 'notifications' })} />
+        <Row icon={UserPlus} label="Zaproś znajomych" sub="Wyślij im link do aplikacji" onClick={inviteFriends} />
+        <Row icon={Store} label="Panel firmowy" sub="Zarządzaj lokalem lub wydarzeniami" onClick={() => navigate({ name: 'owner' })} />
+        <button onClick={toggleTheme} className="flex w-full items-center gap-3 rounded-card bg-paper p-3.5 text-left shadow-card active:scale-[0.99]">
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-coral/12 text-coral"><Moon size={18} /></span>
+          <div className="flex-1">
+            <p className="text-[14px] font-bold text-ink">Tryb ciemny</p>
+            <p className="text-[12px] text-subtle">{theme === 'dark' ? 'Włączony' : 'Wyłączony'}</p>
+          </div>
+          <span className={cx('relative h-7 w-12 shrink-0 rounded-full transition-colors', theme === 'dark' ? 'bg-coral' : 'bg-ink/15')}>
+            <span className={cx('absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all', theme === 'dark' ? 'left-[22px]' : 'left-0.5')} />
+          </span>
+        </button>
+      </div>
+
+      {/* Odznaki — karuzela z pierścieniem postępu */}
+      <div className="mt-6">
+        <h2 className="mb-3 px-4 text-[16px] font-bold text-ink">🏆 Twoje odznaki</h2>
+        <div className="flex gap-4 overflow-x-auto px-4 pb-1 no-scrollbar">
+          {BADGES.map((b) => {
+            const prog = badgeProgress(b);
+            const done = prog >= b.goal;
+            return (
+              <div key={b.id} className="flex w-[78px] shrink-0 flex-col items-center text-center">
+                <ProgressRing progress={Math.min(1, prog / b.goal)} size={64} stroke={5} color="#FF5A4D" track="rgba(255,90,77,0.12)">
+                  <span className={cx('text-2xl', !done && 'opacity-45 grayscale')}>{b.emoji}</span>
+                </ProgressRing>
+                <p className="mt-1.5 text-[11px] font-bold leading-tight text-ink">{b.name}</p>
+                <p className={cx('text-[9.5px] font-semibold', done ? 'text-success' : 'text-subtle')}>
+                  {done ? 'Zdobyta ✓' : `${Math.min(prog, b.goal)}/${b.goal} ${BADGE_UNIT[b.metric]}`}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Ostatnia aktywność — z meldunków (mają znacznik czasu) */}
+      {checkinHistory.length > 0 && (
+        <div className="mt-6 px-4">
+          <h2 className="mb-3 text-[16px] font-bold text-ink">Ostatnia aktywność</h2>
+          <div className="space-y-2">
+            {checkinHistory.slice(0, 4).map((c, i) => {
+              const v = activeVenues().find((vv) => vv.id === c.venueId);
+              return (
+                <div key={`${c.venueId}-${c.at}-${i}`} className="flex items-center gap-3 rounded-card bg-paper p-3 shadow-card">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-success/12 text-success"><MapPin size={16} /></span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13.5px] font-semibold text-ink">Zameldowałeś się w {v?.name ?? 'lokalu'}</p>
+                    <p className="text-[11.5px] text-subtle">{timeAgo(c.at)}</p>
+                  </div>
+                  <span className="shrink-0 text-[12px] font-bold text-success">+15 pkt</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Obserwowani */}
+      {followed.length > 0 && (
+        <div className="mt-6 px-4">
+          <h2 className="mb-3 text-[16px] font-bold text-ink">🔔 Obserwujesz</h2>
+          <div className="space-y-2">
+            {followed.map((o) => (
+              <div key={o.id} className="flex items-center gap-3 rounded-card bg-paper p-3 shadow-card">
+                <span className="text-2xl">{o.emoji}</span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[14px] font-bold text-ink">{o.name}</p>
+                  <p className="text-[12px] text-subtle">{o.kind === 'instytucja' ? 'Instytucja' : 'Lokal'}</p>
+                </div>
+                <button onClick={() => toggleFollow(o.id)} className="rounded-full bg-black/5 px-3 py-1.5 text-[12px] font-bold text-ink/70 active:scale-95">
+                  {isFollowing(o.id) ? 'Obserwujesz' : 'Obserwuj'}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Reset */}
+      <div className="mt-8 px-4">
+        <button onClick={resetApp} className="flex w-full items-center justify-center gap-2 rounded-card border border-black/10 bg-paper py-3.5 text-[14px] font-bold text-ink/60 active:scale-[0.99]">
+          <LogOut size={17} /> Zacznij od nowa (reset demo)
+        </button>
+        <p className="mt-3 text-center text-[11.5px] text-subtle">Lokalio · prototyp · dane przykładowe (Kraków)</p>
+      </div>
+
+      <LocationSheet open={locOpen} onClose={() => setLocOpen(false)} />
+    </div>
+  );
+}
+
+function Stat({ icon: Icon, value, label, sub, subTint, onClick }: { icon: typeof Heart; value: number; label: string; sub?: string; subTint?: string; onClick?: () => void }) {
+  return (
+    <button onClick={onClick} className="flex flex-col rounded-2xl bg-paper p-2.5 text-left shadow-card transition active:scale-95">
+      <div className="flex items-center justify-between">
+        <Icon size={15} className="text-coral" />
+        <ChevronRight size={13} className="text-ink/25" />
+      </div>
+      <span className="mt-1.5 text-[18px] font-extrabold leading-none text-ink">{value}</span>
+      <span className="mt-0.5 text-[10px] font-medium text-subtle">{label}</span>
+      {sub && <span className={cx('mt-1 text-[9px] font-bold leading-tight', subTint ?? 'text-success')}>{sub}</span>}
+    </button>
+  );
+}
+
+function Row({ icon: Icon, label, sub, onClick, badge }: { icon: typeof Heart; label: string; sub?: string; onClick: () => void; badge?: number }) {
+  return (
+    <button onClick={onClick} className="flex w-full items-center gap-3 rounded-card bg-paper p-3.5 text-left shadow-card active:scale-[0.99]">
+      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-coral/12 text-coral">
+        <Icon size={18} />
+      </span>
+      <div className="flex-1">
+        <p className="text-[14px] font-bold text-ink">{label}</p>
+        {sub && <p className="text-[12px] text-subtle">{sub}</p>}
+      </div>
+      {badge ? <span className="mr-1 inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-coral px-1.5 text-[12px] font-bold text-white">{badge > 9 ? '9+' : badge}</span> : null}
+      <ChevronRight className="text-ink/30" />
+    </button>
+  );
+}

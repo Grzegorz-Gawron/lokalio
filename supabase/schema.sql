@@ -1,0 +1,102 @@
+-- ============================================================
+-- Lokalio WEB — konta + akcje użytkownika (Supabase / Postgres)
+-- ------------------------------------------------------------
+-- BEZPIECZNE obok apki mobilnej: wszystkie tabele mają prefiks lk_,
+-- więc NIE kolidują z istniejącymi (organizers/events/profiles/...).
+-- Katalog (wydarzenia/lokale/oferty) na razie w aplikacji (src/data) —
+-- tutaj trzymamy to, co musi być realne: konta i akcje użytkownika.
+--
+-- Uruchom: Supabase → SQL Editor → wklej całość → Run.
+-- Potem: Authentication → Providers → włącz Email (magic link).
+-- ============================================================
+
+-- ---------- Profil (rozszerza auth.users) ----------
+create table if not exists lk_profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  name text,
+  age int,
+  gender text check (gender in ('k','m','inna')),
+  district text,
+  city_id text default 'sandomierz',
+  points int default 20,
+  preferred_categories text[] default '{}',
+  created_at timestamptz default now()
+);
+
+-- auto-tworzenie profilu po rejestracji (osobny trigger, nie rusza mobilnego)
+create or replace function lk_handle_new_user()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  insert into lk_profiles (id, name)
+  values (new.id, coalesce(new.raw_user_meta_data->>'name','Gość'))
+  on conflict (id) do nothing;
+  return new;
+end; $$;
+drop trigger if exists lk_on_auth_user_created on auth.users;
+create trigger lk_on_auth_user_created after insert on auth.users
+  for each row execute function lk_handle_new_user();
+
+-- ---------- Akcje użytkownika ----------
+create table if not exists lk_checkins (
+  id bigint generated always as identity primary key,
+  profile_id uuid references lk_profiles(id) on delete cascade,
+  venue_id text not null,
+  created_at timestamptz default now()
+);
+create index if not exists lk_checkins_venue_idx on lk_checkins(venue_id, created_at);
+
+create table if not exists lk_vouchers (
+  id bigint generated always as identity primary key,
+  profile_id uuid references lk_profiles(id) on delete cascade,
+  offer_id text not null,
+  activated_at timestamptz default now(),
+  duration_sec int default 900,
+  status text default 'active' check (status in ('active','redeemed','expired','cancelled')),
+  redeemed_at timestamptz
+);
+
+create table if not exists lk_saves (
+  profile_id uuid references lk_profiles(id) on delete cascade,
+  kind text check (kind in ('event','venue','offer')),
+  item_id text,
+  primary key (profile_id, kind, item_id)
+);
+
+create table if not exists lk_follows (
+  profile_id uuid references lk_profiles(id) on delete cascade,
+  organizer_id text,
+  primary key (profile_id, organizer_id)
+);
+
+create table if not exists lk_friends (
+  profile_id uuid references lk_profiles(id) on delete cascade,
+  friend_id text, -- na razie id z puli demo (np. 'f1'); docelowo uuid profilu
+  primary key (profile_id, friend_id)
+);
+
+-- widok: ilu użytkowników „teraz" w lokalu (ostatnie 2h) — anonimowo, publiczny odczyt
+create or replace view lk_venue_live_counts as
+  select venue_id, count(*)::int as live_count
+  from lk_checkins
+  where created_at > now() - interval '2 hours'
+  group by venue_id;
+
+-- ---------- RLS: każdy widzi/edytuje tylko swoje ----------
+alter table lk_profiles enable row level security;
+alter table lk_checkins enable row level security;
+alter table lk_vouchers enable row level security;
+alter table lk_saves enable row level security;
+alter table lk_follows enable row level security;
+alter table lk_friends enable row level security;
+
+create policy "lk_profiles own" on lk_profiles for all using (id = auth.uid()) with check (id = auth.uid());
+create policy "lk_checkins own" on lk_checkins for all using (profile_id = auth.uid()) with check (profile_id = auth.uid());
+create policy "lk_vouchers own" on lk_vouchers for all using (profile_id = auth.uid()) with check (profile_id = auth.uid());
+create policy "lk_saves own"    on lk_saves    for all using (profile_id = auth.uid()) with check (profile_id = auth.uid());
+create policy "lk_follows own"  on lk_follows  for all using (profile_id = auth.uid()) with check (profile_id = auth.uid());
+create policy "lk_friends own"  on lk_friends  for all using (profile_id = auth.uid()) with check (profile_id = auth.uid());
+
+grant select on lk_venue_live_counts to anon, authenticated;
+
+-- Gotowe. Katalog dodamy do bazy później (tabele lk_organizers/lk_venues/lk_events/lk_offers),
+-- gdy organizatorzy/lokale mają zarządzać treścią samodzielnie.

@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+    --c-bg: 247 243 236;
+    --c-ink: 15 23 41;
+    --c-paper: 255 255 255;
+    --c-muted: 232 224 208;
+    --c-subtle: 139 133 120;
+  }
+
+  .dark {
+    color-scheme: dark;
+    --c-bg: 15 22 38;
+    --c-ink: 237 235 230;
+    --c-paper: 27 36 56;
+    --c-muted: 42 54 80;
+    --c-subtle: 151 160 181;
+  }
+
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    background: rgb(var(--c-bg));
+    color: rgb(var(--c-ink));
+    overscroll-behavior: none;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  /* maska gradientowa do delikatnego zanikania list na dole */
+  .fade-mask-b {
+    -webkit-mask-image: linear-gradient(to bottom, black 88%, transparent 100%);
+    mask-image: linear-gradient(to bottom, black 88%, transparent 100%);
+  }
+}
+
+/* ===== Leaflet — dopasowanie do brandu ===== */
+.leaflet-container {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: #e8e0d0;
+}
+.leaflet-control-attribution {
+  font-size: 9px !important;
+  background: rgba(255, 255, 255, 0.7) !important;
+}
+.leaflet-bar a {
+  color: #0f1729 !important;
+}
+.lokalio-pin {
+  background: transparent;
+  border: none;
+}
