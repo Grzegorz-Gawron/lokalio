@@ -21,7 +21,7 @@ import type {
   Venue,
 } from '../types';
 import type { AccountType, OrganizerCategoryKey } from '../lib/business';
-import { EVENTS, OFFERS, eventsForCity, offersForCity, venuesForCity, makeDefaultUser, venueById, offerById, registerLiveData, registerOwnerVenues, registerOwnerOffers, registerOwnerEvents, registerPublishedEvents, publishedEventsForCity, activeVenues, type LiveData } from '../data/seed';
+import { EVENTS, OFFERS, eventsForCity, offersForCity, venuesForCity, makeDefaultUser, venueById, offerById, registerLiveData, registerOwnerVenues, registerOwnerOffers, registerOwnerEvents, registerPublishedEvents, publishedEventsForCity, activeVenues, DEMO_NEARBY_EVENT, makeDemoNearbyEvent, registerDemoEvents, type LiveData } from '../data/seed';
 import { loadPublishedEvents } from '../lib/published';
 import { snapRadius, DEFAULT_RADIUS_KM } from '../lib/geo';
 import { CITIES, DEFAULT_CITY_ID, cityById, cityIdOf, nearestCity, type City } from '../data/cities';
@@ -452,12 +452,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coordsKey]);
 
+  // DEMO (tylko prezentacja): wydarzenie „za ~90 min" tuż obok użytkownika, by sekcja
+  // „W okolicy teraz" była zawsze demonstrowalna. Wyłączane flagą DEMO_NEARBY_EVENT w seed.ts.
+  const demoNearby = useMemo<EventItem[]>(
+    () => (DEMO_NEARBY_EVENT && user ? [makeDemoNearbyEvent(user.coords)] : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [coordsKey],
+  );
+  useEffect(() => { registerDemoEvents(demoNearby); }, [demoNearby]);
+
   // Treść opublikowana przez właściciela jest ZAWSZE w listach konsumenta (skoro panel ją pokazuje — aplikacja też musi).
   // Wcześniej przy braku danych „live" filtrowaliśmy ją po mieście, przez co potrafiła zniknąć ze wszystkich ekranów. Relewancję załatwia dystans w ekranach.
   const events = useMemo(() => {
     const activeOwn = ownerEvents.filter((e) => !e.ended); // zakończone wydarzenia znikają z aplikacji
-    return [...activeOwn, ...publishedEventsForCity(currentCity), ...(live ? live.events : eventsForCity(currentCity))];
-  }, [live, ownerEvents, currentCity, published]);
+    return [...demoNearby, ...activeOwn, ...publishedEventsForCity(currentCity), ...(live ? live.events : eventsForCity(currentCity))];
+  }, [live, ownerEvents, currentCity, published, demoNearby]);
   const offers = useMemo(() => {
     const activeOwn = ownerOffers.filter((o) => !o.ended); // zakończone oferty znikają z aplikacji
     // Zrealizowane (wykorzystane przez tego użytkownika) chowamy ze WSZYSTKICH list — zostają tylko w „Moje oferty → Wykorzystane".

@@ -2,6 +2,7 @@ import type {
   Badge,
   EventItem,
   Friend,
+  LatLng,
   Offer,
   Organizer,
   User,
@@ -1019,9 +1020,41 @@ let PUBLISHED_EVENTS: EventItem[] = [];
 let PUBLISHED_ORGS: Record<string, Organizer> = {};
 export function registerPublishedEvents(e: EventItem[], orgs: Record<string, Organizer>) { PUBLISHED_EVENTS = e; PUBLISHED_ORGS = orgs; }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// DEMO (TYLKO PREZENTACJA): jedno wydarzenie „za ~90 min" tuż obok użytkownika,
+// żeby sekcja „W okolicy teraz" (Home: ≤2 km + start ≤4 h) była zawsze widoczna w
+// akcji — nawet poza godzinami, w których seed/live ma coś tak blisko i tak wcześnie.
+//
+// USUNIĘCIE PRZY REALNYCH DANYCH: ustaw DEMO_NEARBY_EVENT = false (jedno miejsce).
+// Wstrzyknięcie żyje w AppContext (efekt registerDemoEvents + dołączenie do `events`).
+export const DEMO_NEARBY_EVENT = true;
+let DEMO_EVENTS: EventItem[] = [];
+export function registerDemoEvents(e: EventItem[]) { DEMO_EVENTS = e; }
+export function makeDemoNearbyEvent(coords: LatLng): EventItem {
+  const start = new Date(Date.now() + 90 * 60 * 1000); // start za ~90 min od „teraz"
+  const p = (n: number) => String(n).padStart(2, '0');
+  const iso = `${start.getFullYear()}-${p(start.getMonth() + 1)}-${p(start.getDate())}T${p(start.getHours())}:${p(start.getMinutes())}`;
+  return {
+    id: 'demo-nearby',
+    title: 'Potańcówka na rynku',
+    category: 'social',
+    organizerId: '',
+    place: 'Tuż obok Ciebie',
+    coords: { lat: coords.lat + 0.003, lng: coords.lng }, // ~330 m od użytkownika (mieści się w 2 km)
+    dateIso: iso,
+    free: true,
+    priceLabel: 'Wstęp wolny',
+    description: 'Spontaniczna potańcówka tuż obok — wpadnij na chwilę!',
+    emoji: '💃',
+    gradient: ['#FF8275', '#FF5A4D'],
+    tags: ['Demo'],
+    source: 'instytucja',
+  };
+}
+
 // Aktywny zbiór do przeglądania / agenta / „podobnych": realne dane gdy włączone, inaczej seed.
 export const activeVenues = (): Venue[] => [...OWNER_VENUES, ...(LIVE_ON ? LIVE_VENUES : VENUES)];
-export const activeEvents = (): EventItem[] => [...OWNER_EVENTS, ...PUBLISHED_EVENTS, ...(LIVE_ON ? LIVE_EVENTS : EVENTS)];
+export const activeEvents = (): EventItem[] => [...DEMO_EVENTS, ...OWNER_EVENTS, ...PUBLISHED_EVENTS, ...(LIVE_ON ? LIVE_EVENTS : EVENTS)];
 export const activeOffers = (): Offer[] => [...OWNER_OFFERS, ...(LIVE_ON ? LIVE_OFFERS : OFFERS)];
 
 // ============================================================
@@ -1029,7 +1062,7 @@ export const activeOffers = (): Offer[] => [...OWNER_OFFERS, ...(LIVE_ON ? LIVE_
 // ============================================================
 
 const allVenues = () => [...OWNER_VENUES, ...(LIVE_ON ? [...LIVE_VENUES, ...VENUES] : VENUES)];
-const allEvents = () => [...OWNER_EVENTS, ...PUBLISHED_EVENTS, ...(LIVE_ON ? [...LIVE_EVENTS, ...EVENTS] : EVENTS)];
+const allEvents = () => [...DEMO_EVENTS, ...OWNER_EVENTS, ...PUBLISHED_EVENTS, ...(LIVE_ON ? [...LIVE_EVENTS, ...EVENTS] : EVENTS)];
 const allOffers = () => [...OWNER_OFFERS, ...(LIVE_ON ? [...LIVE_OFFERS, ...OFFERS] : OFFERS)];
 
 export const venueById = (id?: string) => allVenues().find((v) => v.id === id);

@@ -1,8 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
-import { MapPin, ChevronRight, Mic, Sparkles, ArrowUpRight, Search } from 'lucide-react';
+import { MapPin, ChevronRight, Mic, Sparkles, ArrowUpRight, Search, Target, Clock } from 'lucide-react';
 import { useApp } from '../store/AppContext';
 import { CATEGORY_META, CATEGORY_ORDER } from '../theme';
-import { haversineKm, formatDistance } from '../lib/geo';
+import { haversineKm, formatDistance, formatRadius, widerRadius } from '../lib/geo';
 import { isToday, DATE_OPTS, matchesDate } from '../lib/format';
 import { venueById, organizerById } from '../data/seed';
 import { hashId } from '../lib/photos';
@@ -40,8 +40,19 @@ function Mascot({ size = 44, className = '' }: { size?: number; className?: stri
 }
 const likesOf = (id: string) => 30 + (hashId(id + '♥') % 140); // ile polubień (sygnał popularności)
 
+// „za 45 min" / „za 2 h 10 min" — ile czasu do startu (sekcja „W okolicy teraz").
+function untilLabel(iso?: string): string {
+  if (!iso) return '';
+  const min = Math.round((+new Date(iso) - Date.now()) / 60000);
+  if (min <= 0) return 'zaraz';
+  if (min < 60) return `za ${min} min`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m ? `za ${h} h ${m} min` : `za ${h} h`;
+}
+
 export function Home() {
-  const { user, events, offers, venues, currentCity, navigate, setTab, setCity, liveCount, liveActive, setArmAgentVoice, setMapFocus } = useApp();
+  const { user, events, offers, venues, currentCity, navigate, setTab, setCity, liveCount, liveActive, setArmAgentVoice, setMapFocus, radiusKm, useMyLocation, locating } = useApp();
   const { eventTile, offerTile, venueTile } = useTileBuilders();
   const [locOpen, setLocOpen] = useState(false);
   const [feedTab, setFeedTab] = useState<'all' | 'events' | 'offers'>('all'); // oś TYP
@@ -54,12 +65,49 @@ export function Home() {
   const outOfArea = !liveActive && haversineKm(here, currentCity.center) > 30;
   const distOf = (c: LatLng) => formatDistance(haversineKm(here, c));
 
+  // ——— Auto-poszerzanie promienia ———
+  // Gdy w wybranym promieniu jest mało wydarzeń w najbliższym tygodniu (<3), feed po cichu
+  // sięga do kolejnego progu, żeby nie świecił pustkami. Wybrany promień (radiusKm) zostaje
+  // bez zmian — to tylko zasięg feedu; użytkownik może nadpisać ręcznie chipem/sliderem.
+  const MIN_WEEK_EVENTS = 3;
+  const { effectiveRadiusKm, autoExpanded } = useMemo(() => {
+    const now = Date.now();
+    const weekEnd = now + 7 * 86400000;
+    const upcoming = events
+      .filter((e) => { const t = +new Date(e.dateIso); return t >= now && t <= weekEnd; })
+      .map((e) => haversineKm(here, e.coords));
+    const countWithin = (km: number) => upcoming.reduce((n, d) => n + (d <= km ? 1 : 0), 0);
+    let r = radiusKm;
+    while (countWithin(r) < MIN_WEEK_EVENTS) {
+      const wider = widerRadius(r);
+      if (!wider) break;
+      r = wider;
+    }
+    return { effectiveRadiusKm: r, autoExpanded: r > radiusKm };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [events, radiusKm, here.lat, here.lng]);
+
   // ile osób melduje się teraz w okolicy (anonimowo, suma liczników lokali)
   const peopleNow = useMemo(
     () => venues.reduce((s, v) => s + liveCount(v), 0),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [venues, user.checkedInVenueId],
   );
+
+  // ——— Sekcja „W okolicy teraz": blisko (≤2 km) ORAZ start w ciągu najbliższych 4 h ———
+  const okolicyTeraz = useMemo(() => {
+    const now = Date.now();
+    const in4h = now + 4 * 3600 * 1000;
+    return events
+      .filter((e) => {
+        const t = +new Date(e.dateIso);
+        return t >= now && t <= in4h && haversineKm(here, e.coords) <= 2;
+      })
+      .sort((a, b) => +new Date(a.dateIso) - +new Date(b.dateIso)) // najwcześniejsze pierwsze
+      .slice(0, 10)
+      .map(eventTile);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [events, here.lat, here.lng, user.savedEventIds]);
 
   // ——— Sekcja 2: Dzieje się teraz (tylko dzisiejsze wydarzenia) ———
   const liveItems = useMemo(() => {
@@ -147,11 +195,12 @@ export function Home() {
     });
     return filtered
       .map((it) => ({ it, d: haversineKm(here, it.coords) }))
+      .filter((x) => x.d <= effectiveRadiusKm) // odcięcie promieniem (z auto-poszerzaniem, gdy mało wydarzeń)
       .sort((a, b) => a.d - b.d)
       .slice(0, 14)
       .map((x) => x.it);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [events, offers, feedTab, dateFilter, eventCat, here.lat, here.lng, user.savedEventIds, user.savedOfferIds]);
+  }, [events, offers, feedTab, dateFilter, eventCat, effectiveRadiusKm, here.lat, here.lng, user.savedEventIds, user.savedOfferIds]);
 
   // „Na mapie" przy karuzeli → mapa pokazuje TYLKO pozycje z tej karuzeli (kind+id bez prefiksu kafla).
   const focusOnMap = (title: string, tiles: TileData[]) => {
@@ -252,6 +301,50 @@ export function Home() {
         </div>
       )}
 
+      {/* Sekcja „W okolicy teraz" — blisko (≤2 km) i start w ciągu 4 h; sort po czasie */}
+      <section className="pt-6">
+        <div className="mb-3 flex items-center justify-between px-4">
+          <h2 className="flex items-center gap-2 text-[18px] font-extrabold tracking-tight text-ink">
+            <Clock size={18} className="text-coral" /> W okolicy teraz
+          </h2>
+          {user.usesRealLocation && okolicyTeraz.length > 0 && (
+            <button onClick={() => focusOnMap('W okolicy teraz', okolicyTeraz)} className="inline-flex items-center gap-0.5 rounded-full border border-black/10 bg-paper py-1 pl-2.5 pr-2 text-[12.5px] font-bold text-ink/75 shadow-sm active:scale-95">
+              Na mapie <ArrowUpRight size={13} className="text-coral" />
+            </button>
+          )}
+        </div>
+        {!user.usesRealLocation ? (
+          // brak realnej lokalizacji (GPS) — „co dzieje się obok" wymaga Twojego miejsca
+          <div className="px-4">
+            <div className="flex items-center gap-3 rounded-card border border-coral/15 bg-coral/5 p-4">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-coral/12 text-xl">📍</span>
+              <p className="flex-1 text-[12.5px] text-ink/75">Włącz lokalizację, żeby zobaczyć, co dzieje się tuż obok Ciebie.</p>
+              <button onClick={useMyLocation} className="shrink-0 rounded-full bg-coral px-3.5 py-2 text-[12.5px] font-bold text-white shadow-coral active:scale-95">
+                {locating ? '…' : 'Włącz'}
+              </button>
+            </div>
+          </div>
+        ) : okolicyTeraz.length > 0 ? (
+          // te same kafle co reszta feedu; dolna linia: dystans · „za ile"
+          <div className="flex gap-2.5 overflow-x-auto px-4 pb-1 no-scrollbar">
+            {okolicyTeraz.map((it) => (
+              <div key={it.id} className="w-[170px] shrink-0">
+                {/* czas do startu PIERWSZY (sedno tej sekcji), potem dystans */}
+                <FeedTile item={it} dist={`${untilLabel(it.iso)} · ${distOf(it.coords)}`} />
+              </div>
+            ))}
+          </div>
+        ) : (
+          // brak wydarzeń tuż obok w tym oknie czasu — nie chowamy sekcji, kierujemy na mapę
+          <div className="px-4">
+            <button onClick={() => setTab('map')} className="flex w-full items-center gap-3 rounded-card bg-paper p-4 text-left shadow-card active:scale-[0.99]">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ink/5 text-xl">🤫</span>
+              <p className="flex-1 text-[12.5px] text-ink/75">Cisza w okolicy. <span className="font-bold text-coral">Zobacz wszystko na mapie →</span></p>
+            </button>
+          </div>
+        )}
+      </section>
+
       {/* Sekcja 2 — Dzieje się teraz */}
       {liveItems.length > 0 && (
         <section className="pt-6">
@@ -289,6 +382,12 @@ export function Home() {
       {/* Sekcja 3 — Dla Ciebie */}
       <section ref={feedRef} className="scroll-mt-2 pt-7">
         <h2 className="mb-3 px-4 text-[18px] font-extrabold tracking-tight text-ink">Dla Ciebie</h2>
+        {autoExpanded && (
+          <div className="mx-4 mb-3 flex items-center gap-2 rounded-card border border-coral/20 bg-coral/5 p-3 text-[12.5px] text-ink/75">
+            <Target size={15} className="shrink-0 text-coral" />
+            <span>W bliskiej okolicy mało dziś — pokazujemy też okolice (<b className="text-ink">{formatRadius(effectiveRadiusKm)}</b>).</span>
+          </div>
+        )}
         <div className="mb-2 flex gap-2 overflow-x-auto px-4 no-scrollbar">
           <FilterChip active={feedTab === 'all' && !dateFilter} onClick={() => { setFeedTab('all'); setDateFilter(null); setEventCat('all'); setMenu(null); }}>Wszystko</FilterChip>
           <FilterChip
