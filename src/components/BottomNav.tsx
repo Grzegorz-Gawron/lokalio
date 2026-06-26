@@ -30,16 +30,16 @@ export function BottomNav() {
         {/* Centralny agent */}
         <button
           onClick={() => setTab('agent')}
-          className="-mt-7 flex w-[20%] flex-col items-center"
+          className="-mt-3 flex w-[20%] flex-col items-center"
         >
           <span
             className={cx(
-              'flex h-14 w-14 items-center justify-center rounded-full text-white shadow-coral transition active:scale-90',
+              'flex h-11 w-11 items-center justify-center rounded-full text-white shadow-coral transition active:scale-90',
               current === 'agent' ? 'ring-4 ring-coral/25' : '',
             )}
             style={{ background: 'linear-gradient(135deg, #FF7A6E, #FF5A4D)' }}
           >
-            <Sparkles size={24} className="animate-bob" />
+            <Sparkles size={20} className="animate-bob" />
           </span>
           <span className={cx('mt-1 text-[10px] font-bold', current === 'agent' ? 'text-coral' : 'text-ink/60')}>
             Lokalio
