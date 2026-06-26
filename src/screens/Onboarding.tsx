@@ -4,7 +4,7 @@ import { useApp } from '../store/AppContext';
 import { Logo, LogoMark } from '../components/Logo';
 import { CATEGORY_META } from '../theme';
 import { EVENT_GROUPS } from '../lib/business';
-import { cx, Chip } from '../components/ui';
+import { cx, Chip, PasswordFields, pwdReady } from '../components/ui';
 import { SELECTABLE_CITIES, cityById, nearestCity, DEFAULT_CITY_ID } from '../data/cities';
 import { emailHasAccount } from '../lib/backend';
 import type { CategoryKey, Gender, LatLng } from '../types';
@@ -23,6 +23,8 @@ export function Onboarding() {
   const [interests, setInterests] = useState<string[]>([]); // wybrane grupy zainteresowań (etykiety z EVENT_GROUPS)
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [usePwd, setUsePwd] = useState(false); // hasło jako ukryta opcja (domyślnie link bez hasła)
   const [sent, setSent] = useState(false);
   const [registered, setRegistered] = useState(false); // po rejestracji → ekran „potwierdź e-mail"
   const [resending, setResending] = useState(false);
@@ -79,10 +81,9 @@ export function Onboarding() {
   const finishRegister = async () => {
     if (sending) return;
     setSending(true);
-    const pwd = password.trim();
-    if (pwd.length >= 6) {
+    if (usePwd && pwdReady(password, confirm)) {
       // konto z własnym hasłem — od razu zalogowany (lub potwierdzenie e-mail, zależnie od konfiguracji Supabase)
-      const { error, needsConfirm, alreadyExists } = await registerWithPassword(email, pwd);
+      const { error, needsConfirm, alreadyExists } = await registerWithPassword(email, password);
       setSending(false);
       if (error) {
         showToast(/at least 6|password should be/i.test(error) ? 'Hasło musi mieć min. 6 znaków.' : error, '⚠️');
@@ -147,8 +148,8 @@ export function Onboarding() {
         showToast('Podaj e-mail, aby założyć konto', '⚠️');
         return;
       }
-      if (password.trim() && password.trim().length < 6) {
-        showToast('Hasło musi mieć min. 6 znaków', '⚠️');
+      if (usePwd && !pwdReady(password, confirm)) {
+        showToast('Hasło: min. 6 znaków i oba pola identyczne', '⚠️');
         return;
       }
       setChecking(true);
@@ -373,16 +374,15 @@ export function Onboarding() {
                   </div>
                 ) : (
                   <>
-                    <label className="mt-4 block text-[13px] font-bold text-ink/70">Hasło (opcjonalnie)</label>
-                    <input
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      type="password"
-                      autoComplete="new-password"
-                      placeholder="Utwórz hasło (min. 6 znaków)"
-                      className="mt-2 w-full rounded-xl border border-black/10 bg-paper px-4 py-3 text-[15px] outline-none focus:border-coral"
-                    />
-                    <p className="mt-1.5 text-[12px] text-subtle">Z hasłem zalogujesz się od razu. Zostaw puste — wyślemy link bez hasła. Konto daje oferty, promocje i synchronizację.</p>
+                    <label className="mt-4 flex cursor-pointer items-center gap-2.5">
+                      <input type="checkbox" checked={usePwd} onChange={(e) => setUsePwd(e.target.checked)} className="h-4 w-4 accent-coral" />
+                      <span className="text-[13.5px] font-bold text-ink/80">Ustaw własne hasło</span>
+                    </label>
+                    {usePwd ? (
+                      <PasswordFields password={password} setPassword={setPassword} confirm={confirm} setConfirm={setConfirm} />
+                    ) : (
+                      <p className="mt-1.5 text-[12px] text-subtle">Bez hasła wyślemy link potwierdzający. Konto daje oferty, promocje i synchronizację.</p>
+                    )}
                   </>
                 )}
               </>

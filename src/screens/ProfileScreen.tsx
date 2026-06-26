@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { Heart, Ticket, MapPin, Eye, ChevronRight, LogOut, Store, Mail, Check, LogIn, Moon, Pencil, UserPlus, Bell, Target } from 'lucide-react';
+import { Heart, Ticket, MapPin, Eye, EyeOff, ChevronRight, LogOut, Store, Mail, Check, LogIn, Moon, Pencil, UserPlus, Bell, Target, Lock } from 'lucide-react';
 import { useApp } from '../store/AppContext';
+import { setAccountPassword } from '../lib/backend';
 import { BADGES, organizerById, venueById, offerById, eventById, offersForVenue, activeVenues } from '../data/seed';
 import { CATEGORY_META } from '../theme';
 import { isToday } from '../lib/format';
 import { formatRadius, RADIUS_STEPS } from '../lib/geo';
 import { hashId } from '../lib/photos';
-import { cx, ProgressRing } from '../components/ui';
+import { cx, ProgressRing, PasswordFields, pwdReady } from '../components/ui';
 import { LocationSheet } from '../components/LocationSheet';
 import type { Badge, Organizer } from '../types';
 
@@ -33,6 +34,14 @@ export function ProfileScreen() {
   const [sending, setSending] = useState(false);
   const [authBusy, setAuthBusy] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+  const [confirm, setConfirm] = useState(''); // powtórz hasło (rejestracja)
+  const [usePwd, setUsePwd] = useState(false); // hasło jako ukryta opcja przy zakładaniu konta
+  const [showPwd, setShowPwd] = useState(false); // podgląd hasła logowania
+  const [pwdOpen, setPwdOpen] = useState(false); // sekcja „ustaw hasło do konta" (zalogowany)
+  const [newPwd, setNewPwd] = useState('');
+  const [newPwd2, setNewPwd2] = useState('');
+  const [pwdSaving, setPwdSaving] = useState(false);
   const authMsg = (e: string) => {
     if (/invalid login credentials/i.test(e)) return 'Błędny e-mail lub hasło.';
     if (/already registered|already exists/i.test(e)) return 'Konto z tym e-mailem już istnieje — zaloguj się.';
@@ -49,13 +58,17 @@ export function ProfileScreen() {
     else setSentMsg(`Wysłaliśmy link logowania na ${email}. Kliknij go, aby się zalogować.`);
   };
   const submitPassword = async (mode: 'signin' | 'signup') => {
-    if (!email.trim() || !password.trim() || authBusy) return;
-    setAuthBusy(true);
+    if (!email.trim() || authBusy) return;
     if (mode === 'signin') {
+      if (!password.trim()) { showToast('Podaj hasło', '⚠️'); return; }
+      setAuthBusy(true);
       const { error } = await loginWithPassword(email, password);
       setAuthBusy(false);
       if (error) showToast(authMsg(error), '⚠️'); else showToast('Zalogowano', '✅');
     } else {
+      if (!usePwd) { sendLink(); return; } // bez hasła → magic link
+      if (!pwdReady(password, confirm)) { showToast('Hasło: min. 6 znaków i oba pola identyczne', '⚠️'); return; }
+      setAuthBusy(true);
       const { error, needsConfirm, alreadyExists } = await registerWithPassword(email, password);
       setAuthBusy(false);
       if (error) showToast(authMsg(error), '⚠️');
@@ -63,6 +76,15 @@ export function ProfileScreen() {
       else if (needsConfirm) setSentMsg(`Wysłaliśmy link na ${email}. Potwierdź konto, aby się zalogować.`);
       else showToast('Konto założone — zalogowano', '🎉');
     }
+  };
+
+  const saveAccountPassword = async () => {
+    if (!pwdReady(newPwd, newPwd2) || pwdSaving) return;
+    setPwdSaving(true);
+    const { error } = await setAccountPassword(newPwd);
+    setPwdSaving(false);
+    if (error) showToast(authMsg(error), '⚠️');
+    else { setPwdOpen(false); setNewPwd(''); setNewPwd2(''); showToast('Hasło zapisane ✓', '✅'); }
   };
   const inviteFriends = async () => {
     const url = window.location.origin;
@@ -185,6 +207,25 @@ export function ProfileScreen() {
                   <button onClick={logout} className="rounded-full bg-coral px-3 py-1.5 text-[12px] font-bold text-white shadow-coral active:scale-95">Wyloguj</button>
                 </div>
               )}
+              {!confirmLogout && (
+                <div className="mt-3 border-t border-black/5 pt-3">
+                  {pwdOpen ? (
+                    <>
+                      <p className="text-[12.5px] font-bold text-ink/70">Ustaw hasło do konta</p>
+                      <p className="mt-0.5 text-[11.5px] text-subtle">Przyda się, jeśli zakładałeś konto linkiem — potem zalogujesz się też hasłem.</p>
+                      <PasswordFields password={newPwd} setPassword={setNewPwd} confirm={newPwd2} setConfirm={setNewPwd2} />
+                      <div className="mt-2.5 flex gap-2">
+                        <button onClick={() => { setPwdOpen(false); setNewPwd(''); setNewPwd2(''); }} className="rounded-xl bg-black/5 px-3.5 py-2 text-[12.5px] font-bold text-ink/60 active:scale-95">Anuluj</button>
+                        <button onClick={saveAccountPassword} disabled={!pwdReady(newPwd, newPwd2) || pwdSaving} className="flex-1 rounded-xl bg-coral py-2 text-[12.5px] font-bold text-white shadow-coral active:scale-95 disabled:opacity-50">{pwdSaving ? 'Zapisuję…' : 'Zapisz hasło'}</button>
+                      </div>
+                    </>
+                  ) : (
+                    <button onClick={() => setPwdOpen(true)} className="inline-flex items-center gap-1.5 text-[12.5px] font-bold text-coral active:scale-95">
+                      <Lock size={14} /> Ustaw / zmień hasło do konta
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           ) : sentMsg ? (
             <div className="rounded-card bg-paper p-4 text-center shadow-card">
@@ -197,12 +238,29 @@ export function ProfileScreen() {
             <div className="rounded-card bg-paper p-4 shadow-card">
               <p className="flex items-center gap-2 text-[14px] font-bold text-ink"><LogIn size={16} className="text-coral" /> Załóż konto / zaloguj się</p>
               <p className="mt-0.5 text-[12.5px] text-subtle">Profil, punkty i Twoje treści zapiszą się w chmurze — z dostępem z wielu urządzeń.</p>
-              <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoComplete="email" placeholder="twój@email.pl" className="mt-2.5 w-full rounded-xl border border-black/10 bg-paper px-3.5 py-2.5 text-[14px] outline-none focus:border-coral" />
-              <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete="current-password" placeholder="Hasło (min. 6 znaków)" className="mt-2 w-full rounded-xl border border-black/10 bg-paper px-3.5 py-2.5 text-[14px] outline-none focus:border-coral" />
-              <div className="mt-2.5 flex gap-2">
-                <button onClick={() => submitPassword('signin')} disabled={authBusy} className="flex-1 rounded-xl bg-coral py-2.5 text-[13.5px] font-bold text-white shadow-coral active:scale-95 disabled:opacity-60">{authBusy ? '…' : 'Zaloguj się'}</button>
-                <button onClick={() => submitPassword('signup')} disabled={authBusy} className="flex-1 rounded-xl bg-black/5 py-2.5 text-[13.5px] font-bold text-ink/70 active:scale-95 disabled:opacity-60">Załóż konto</button>
+              <div className="mt-3 flex gap-1 rounded-xl bg-black/5 p-1">
+                <button onClick={() => setAuthMode('signin')} className={cx('flex-1 rounded-lg py-1.5 text-[13px] font-bold transition', authMode === 'signin' ? 'bg-paper text-ink shadow-sm' : 'text-ink/50')}>Zaloguj się</button>
+                <button onClick={() => setAuthMode('signup')} className={cx('flex-1 rounded-lg py-1.5 text-[13px] font-bold transition', authMode === 'signup' ? 'bg-paper text-ink shadow-sm' : 'text-ink/50')}>Załóż konto</button>
               </div>
+              <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoComplete="email" placeholder="twój@email.pl" className="mt-2.5 w-full rounded-xl border border-black/10 bg-paper px-3.5 py-2.5 text-[14px] outline-none focus:border-coral" />
+              {authMode === 'signin' ? (
+                <>
+                  <div className="relative mt-2">
+                    <input value={password} onChange={(e) => setPassword(e.target.value)} type={showPwd ? 'text' : 'password'} autoComplete="current-password" placeholder="Hasło" className="w-full rounded-xl border border-black/10 bg-paper px-3.5 py-2.5 pr-10 text-[14px] outline-none focus:border-coral" />
+                    <button type="button" onClick={() => setShowPwd((s) => !s)} aria-label={showPwd ? 'Ukryj hasło' : 'Pokaż hasło'} className="absolute right-3 top-1/2 -translate-y-1/2 text-ink/40 active:scale-90">{showPwd ? <EyeOff size={17} /> : <Eye size={17} />}</button>
+                  </div>
+                  <button onClick={() => submitPassword('signin')} disabled={authBusy} className="mt-2.5 w-full rounded-xl bg-coral py-2.5 text-[13.5px] font-bold text-white shadow-coral active:scale-95 disabled:opacity-60">{authBusy ? '…' : 'Zaloguj się'}</button>
+                </>
+              ) : (
+                <>
+                  <label className="mt-2.5 flex cursor-pointer items-center gap-2.5">
+                    <input type="checkbox" checked={usePwd} onChange={(e) => setUsePwd(e.target.checked)} className="h-4 w-4 accent-coral" />
+                    <span className="text-[13px] font-bold text-ink/80">Ustaw własne hasło</span>
+                  </label>
+                  {usePwd && <PasswordFields password={password} setPassword={setPassword} confirm={confirm} setConfirm={setConfirm} />}
+                  <button onClick={() => submitPassword('signup')} disabled={authBusy} className="mt-2.5 w-full rounded-xl bg-coral py-2.5 text-[13.5px] font-bold text-white shadow-coral active:scale-95 disabled:opacity-60">{authBusy ? '…' : 'Załóż konto'}</button>
+                </>
+              )}
               <button onClick={sendLink} disabled={sending} className="mt-2 inline-flex items-center gap-1 text-[12px] font-bold text-coral disabled:opacity-60"><Mail size={13} /> {sending ? 'Wysyłam…' : 'lub wyślij link bez hasła'}</button>
             </div>
           )}

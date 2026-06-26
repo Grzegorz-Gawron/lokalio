@@ -74,6 +74,13 @@ export async function signUpWithPassword(email: string, password: string): Promi
   return { error: null, needsConfirm: !data.session, alreadyExists };
 }
 
+/** Ustawia/zmienia hasło aktualnie zalogowanego konta (np. dodanie hasła do konta założonego linkiem). */
+export async function setAccountPassword(password: string): Promise<{ error: string | null }> {
+  if (!supabase) return { error: 'Supabase nie jest skonfigurowany.' };
+  const { error } = await supabase.auth.updateUser({ password });
+  return { error: error?.message ?? null };
+}
+
 /**
  * Czy e-mail ma już konto. Supabase nie ujawnia tego wprost (ochrona przed enumeracją),
  * więc próbujemy logowania BEZ tworzenia konta: brak błędu = konto istnieje (i właśnie

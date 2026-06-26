@@ -1,8 +1,43 @@
-import { useRef, type ReactNode, type PointerEvent as RPointerEvent } from 'react';
-import { Star, TrendingUp, TrendingDown, Minus, ChevronDown } from 'lucide-react';
+import { useRef, useState, type ReactNode, type PointerEvent as RPointerEvent } from 'react';
+import { Star, TrendingUp, TrendingDown, Minus, ChevronDown, Eye, EyeOff } from 'lucide-react';
 
 export function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(' ');
+}
+
+// ------------------------------------------------------------
+// Pola tworzenia hasła: „Hasło" + „Powtórz hasło" z podglądem (👁) i sprawdzaniem zgodności.
+export function pwdReady(password: string, confirm: string): boolean {
+  return password.length >= 6 && password === confirm;
+}
+export function PasswordFields({ password, setPassword, confirm, setConfirm }: {
+  password: string; setPassword: (v: string) => void; confirm: string; setConfirm: (v: string) => void;
+}) {
+  const [show, setShow] = useState(false);
+  const tooShort = password.length > 0 && password.length < 6;
+  const mismatch = confirm.length > 0 && password !== confirm;
+  const ok = pwdReady(password, confirm);
+  const cls = 'w-full rounded-xl border bg-paper px-4 py-3 pr-11 text-[15px] outline-none focus:border-coral';
+  const eye = (
+    <button type="button" onClick={() => setShow((s) => !s)} aria-label={show ? 'Ukryj hasło' : 'Pokaż hasło'} className="absolute right-3 top-1/2 -translate-y-1/2 text-ink/40 active:scale-90">
+      {show ? <EyeOff size={18} /> : <Eye size={18} />}
+    </button>
+  );
+  return (
+    <>
+      <div className="relative mt-2">
+        <input value={password} onChange={(e) => setPassword(e.target.value)} type={show ? 'text' : 'password'} autoComplete="new-password" placeholder="Hasło (min. 6 znaków)" className={cx(cls, tooShort ? 'border-danger' : 'border-black/10')} />
+        {eye}
+      </div>
+      <div className="relative mt-2">
+        <input value={confirm} onChange={(e) => setConfirm(e.target.value)} type={show ? 'text' : 'password'} autoComplete="new-password" placeholder="Powtórz hasło" className={cx(cls, mismatch ? 'border-danger' : 'border-black/10')} />
+        {eye}
+      </div>
+      {tooShort && <p className="mt-1.5 text-[12px] font-semibold text-danger">Hasło musi mieć min. 6 znaków.</p>}
+      {!tooShort && mismatch && <p className="mt-1.5 text-[12px] font-semibold text-danger">Hasła się różnią.</p>}
+      {ok && <p className="mt-1.5 text-[12px] font-semibold text-success">Hasła zgodne ✓</p>}
+    </>
+  );
 }
 
 // ------------------------------------------------------------
