@@ -25,6 +25,7 @@ export function Onboarding() {
   const [password, setPassword] = useState('');
   const [sent, setSent] = useState(false);
   const [registered, setRegistered] = useState(false); // po rejestracji → ekran „potwierdź e-mail"
+  const [resending, setResending] = useState(false);
   const [sending, setSending] = useState(false);
   const [checking, setChecking] = useState(false);
   const [emailExists, setEmailExists] = useState(false);
@@ -121,6 +122,14 @@ export function Onboarding() {
     else setSent(true);
   };
 
+  const resendLink = async () => {
+    if (resending || !email.trim()) return;
+    setResending(true);
+    const { error } = await loginWithEmail(email);
+    setResending(false);
+    showToast(error ? 'Nie udało się wysłać — spróbuj za chwilę.' : 'Wysłaliśmy link ponownie', error ? '⚠️' : '📧');
+  };
+
   const goBack = () => {
     if (mode === 'login') {
       setMode('choose');
@@ -169,6 +178,13 @@ export function Onboarding() {
             Wysłaliśmy link aktywacyjny na <span className="font-semibold text-ink">{email}</span>. Kliknij go w skrzynce, aby potwierdzić konto — wtedy Twój profil, oferty i meldunki zsynchronizują się na każdym urządzeniu.
           </p>
           <p className="mt-3 text-[12.5px] text-subtle">Nie widzisz wiadomości? Sprawdź folder „Spam".</p>
+          <button
+            onClick={resendLink}
+            disabled={resending}
+            className="mt-3 inline-flex items-center gap-1.5 text-[13px] font-bold text-coral disabled:opacity-50"
+          >
+            <Mail size={15} /> {resending ? 'Wysyłam…' : 'Wyślij link ponownie'}
+          </button>
         </div>
         <div className="safe-bottom shrink-0 px-6 pb-6">
           <button
