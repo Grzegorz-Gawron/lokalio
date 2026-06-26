@@ -99,6 +99,7 @@ interface OnboardData {
   cityId: string;
   district: string;
   coords: LatLng;
+  usesRealLocation?: boolean;
   preferredCategories: CategoryKey[];
 }
 
@@ -524,6 +525,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         gender: data.gender,
         district: data.district,
         coords: data.coords,
+        usesRealLocation: data.usesRealLocation ?? false,
         preferredCategories: data.preferredCategories,
         points: 20,
       }),

@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { MapPin, Sparkles, Ticket, ChevronRight, ChevronLeft, Minus, Plus, Mail, LogIn, UserPlus } from 'lucide-react';
+import { MapPin, Sparkles, Ticket, ChevronRight, ChevronLeft, Minus, Plus, Mail, LogIn, UserPlus, LocateFixed, Check } from 'lucide-react';
 import { useApp } from '../store/AppContext';
 import { Logo, LogoMark } from '../components/Logo';
 import { CATEGORY_META, CATEGORY_ORDER } from '../theme';
 import { cx, Chip } from '../components/ui';
-import { SELECTABLE_CITIES, cityById, DEFAULT_CITY_ID } from '../data/cities';
+import { SELECTABLE_CITIES, cityById, nearestCity, DEFAULT_CITY_ID } from '../data/cities';
 import { emailHasAccount } from '../lib/backend';
-import type { CategoryKey, Gender } from '../types';
+import type { CategoryKey, Gender, LatLng } from '../types';
 
 type Mode = 'choose' | 'guest' | 'register' | 'login';
 
@@ -25,33 +25,55 @@ export function Onboarding() {
   const [sending, setSending] = useState(false);
   const [checking, setChecking] = useState(false);
   const [emailExists, setEmailExists] = useState(false);
+  const [gpsCoords, setGpsCoords] = useState<LatLng | null>(null); // realna lokalizacja z GPS (jeśli włączona)
+  const [locating, setLocating] = useState(false);
 
   const city = cityById(cityId);
   const lastStep = 2;
   const totalSteps = lastStep + 1;
 
   const coordsFor = () => {
+    if (gpsCoords) return gpsCoords; // GPS ma pierwszeństwo nad miastem/dzielnicą
     const d = city.districts.find((x) => x.district === district);
     return d ? d.coords : city.center;
+  };
+
+  const useMyLocation = () => {
+    if (!('geolocation' in navigator)) { showToast('Przeglądarka nie wspiera lokalizacji', '⚠️'); return; }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocating(false);
+        const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        const c = nearestCity(coords);
+        setGpsCoords(coords);
+        setCityId(c.id);
+        setDistrict('');
+        showToast(`Lokalizacja włączona · najbliżej: ${c.name}`, '📍');
+      },
+      () => { setLocating(false); showToast('Nie udało się pobrać lokalizacji', '⚠️'); },
+      { enableHighAccuracy: true, timeout: 9000, maximumAge: 60000 },
+    );
   };
 
   const toggleCat = (c: CategoryKey) =>
     setCats((cur) => (cur.includes(c) ? cur.filter((x) => x !== c) : [...cur, c]));
 
   const pickCity = (id: string) => {
+    setGpsCoords(null); // ręczny wybór miasta wyłącza GPS
     setCityId(id);
     const c = cityById(id);
     setDistrict(c.districts[0]?.district ?? '');
   };
 
-  const finishGuest = () => onboard({ name, age, gender, cityId, district, coords: coordsFor(), preferredCategories: cats });
+  const finishGuest = () => onboard({ name, age, gender, cityId, district, coords: coordsFor(), usesRealLocation: !!gpsCoords, preferredCategories: cats });
 
   const finishRegister = async () => {
     if (sending) return;
     setSending(true);
     if (email.trim()) await loginWithEmail(email);
     // utwórz konto lokalnie + wejdź; magic link potwierdza konto i synchronizuje profil
-    onboard({ name, age, gender, cityId, district, coords: coordsFor(), preferredCategories: cats });
+    onboard({ name, age, gender, cityId, district, coords: coordsFor(), usesRealLocation: !!gpsCoords, preferredCategories: cats });
     showToast('Konto utworzone — sprawdź e-mail, by je potwierdzić', '📧');
   };
 
@@ -273,7 +295,24 @@ export function Onboarding() {
               ))}
             </select>
 
-            {city.districts.length > 0 && (
+            <div className="mt-3 flex items-center gap-3">
+              <div className="h-px flex-1 bg-black/10" />
+              <span className="text-[12px] text-subtle">albo</span>
+              <div className="h-px flex-1 bg-black/10" />
+            </div>
+            <button
+              onClick={useMyLocation}
+              disabled={locating}
+              className={cx(
+                'mt-3 flex w-full items-center justify-center gap-2 rounded-xl border-2 py-3 text-[14px] font-bold transition active:scale-[0.98]',
+                gpsCoords ? 'border-success/40 bg-success/10 text-success' : 'border-coral/30 bg-paper text-coral',
+              )}
+            >
+              {gpsCoords ? <Check size={18} /> : <LocateFixed size={18} className={locating ? 'animate-spin' : ''} />}
+              {locating ? 'Ustalam lokalizację…' : gpsCoords ? 'Lokalizacja włączona' : 'Użyj mojej lokalizacji (GPS)'}
+            </button>
+
+            {!gpsCoords && city.districts.length > 0 && (
               <>
                 <label className="mt-5 block text-[13px] font-bold text-ink/70">Dzielnica</label>
                 <div className="mt-2 flex flex-wrap gap-2">
@@ -284,10 +323,17 @@ export function Onboarding() {
               </>
             )}
 
-            <div className="mt-6 flex items-center gap-3 rounded-xl border border-coral/20 bg-coral/5 p-3.5">
-              <MapPin size={18} className="shrink-0 text-coral" />
-              <p className="text-[12.5px] text-ink/70">Lokalizację możesz później zmienić w aplikacji (także GPS).</p>
-            </div>
+            {gpsCoords ? (
+              <div className="mt-6 flex items-center gap-3 rounded-xl border border-success/30 bg-success/10 p-3.5">
+                <MapPin size={18} className="shrink-0 text-success" />
+                <p className="text-[12.5px] text-ink/70">Używasz swojej lokalizacji — pokażemy, co jest najbliżej (najbliżej: {city.name}).</p>
+              </div>
+            ) : (
+              <div className="mt-6 flex items-center gap-3 rounded-xl border border-coral/20 bg-coral/5 p-3.5">
+                <MapPin size={18} className="shrink-0 text-coral" />
+                <p className="text-[12.5px] text-ink/70">Lokalizację możesz później zmienić w aplikacji (także GPS).</p>
+              </div>
+            )}
           </div>
         )}
 
