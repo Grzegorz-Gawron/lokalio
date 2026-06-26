@@ -357,7 +357,7 @@ export function ProfileScreen() {
         <button onClick={resetApp} className="flex w-full items-center justify-center gap-2 rounded-card border border-black/10 bg-paper py-3.5 text-[14px] font-bold text-ink/60 active:scale-[0.99]">
           <LogOut size={17} /> Zacznij od nowa (reset demo)
         </button>
-        <p className="mt-3 text-center text-[11.5px] text-subtle">Lokalio · prototyp · dane przykładowe (Kraków)</p>
+        <p className="mt-3 text-center text-[11.5px] text-subtle">Lokalio · prototyp · dane przykładowe</p>
       </div>
 
       <LocationSheet open={locOpen} onClose={() => setLocOpen(false)} />

@@ -64,11 +64,11 @@ export function AddressBlock({ v, onChange, placeNameLabel = 'Nazwa miejsca' }: 
         <Field label="Linia adresu 2" className="flex-1"><input value={v.line2} onChange={(e) => onChange({ line2: e.target.value })} placeholder="lok. 10" className={inputCls} /></Field>
       </div>
       <div className="flex gap-3">
-        <Field label="Miasto" className="flex-1"><input value={v.city} onChange={(e) => onChange({ city: e.target.value })} placeholder="Kraków" className={inputCls} /></Field>
-        <Field label="Województwo / region" className="flex-1"><input value={v.region} onChange={(e) => onChange({ region: e.target.value })} placeholder="małopolskie" className={inputCls} /></Field>
+        <Field label="Miasto" className="flex-1"><input value={v.city} onChange={(e) => onChange({ city: e.target.value })} placeholder="Sandomierz" className={inputCls} /></Field>
+        <Field label="Województwo / region" className="flex-1"><input value={v.region} onChange={(e) => onChange({ region: e.target.value })} placeholder="świętokrzyskie" className={inputCls} /></Field>
       </div>
       <div className="flex gap-3">
-        <Field label="Kod pocztowy" className="flex-1"><input value={v.postal} onChange={(e) => onChange({ postal: e.target.value })} placeholder="30-001" className={inputCls} /></Field>
+        <Field label="Kod pocztowy" className="flex-1"><input value={v.postal} onChange={(e) => onChange({ postal: e.target.value })} placeholder="27-600" className={inputCls} /></Field>
         <Field label="Kraj" className="flex-1">
           <select value={v.country} onChange={(e) => onChange({ country: e.target.value })} className={inputCls}>
             {COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -1679,7 +1679,7 @@ export function EventSeoSection({ seoTitle, seoDescription, seoKeywords, seoInde
           <p className="text-[11.5px] leading-snug text-subtle">Jak wydarzenie wygląda w Google i przy udostępnianiu. Puste pola = nazwa i opis wydarzenia.</p>
           <Field label="Tytuł SEO"><input value={seoTitle ?? ''} onChange={(e) => onSeo({ seoTitle: e.target.value })} placeholder="Domyślnie: nazwa wydarzenia" className={inputCls} /></Field>
           <Field label="Opis SEO"><textarea value={seoDescription ?? ''} onChange={(e) => onSeo({ seoDescription: e.target.value })} rows={2} placeholder="Domyślnie: opis wydarzenia" className={inputCls} /></Field>
-          <Field label="Słowa kluczowe"><input value={seoKeywords ?? ''} onChange={(e) => onSeo({ seoKeywords: e.target.value })} placeholder="koncert, jazz, Kraków…" className={inputCls} /></Field>
+          <Field label="Słowa kluczowe"><input value={seoKeywords ?? ''} onChange={(e) => onSeo({ seoKeywords: e.target.value })} placeholder="koncert, jazz, Sandomierz…" className={inputCls} /></Field>
           <div className="flex items-center justify-between gap-3 pt-0.5">
             <div className="min-w-0">
               <p className="text-[13px] font-bold text-ink/80">Zezwól na indeksowanie</p>

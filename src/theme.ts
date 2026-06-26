@@ -1,4 +1,4 @@
-import type { CategoryKey, LatLng } from './types';
+import type { CategoryKey } from './types';
 
 export const CATEGORY_META: Record<
   CategoryKey,
@@ -21,12 +21,3 @@ export const CATEGORY_ORDER: CategoryKey[] = [
   'sport',
 ];
 
-export const CITY: { name: string; center: LatLng } = {
-  name: 'Kraków',
-  center: { lat: 50.0617, lng: 19.9373 }, // Rynek Główny
-};
-
-export const DISTANCE_STEPS = [1, 2, 5, 10, 25] as const;
-
-// Bony: zasięg zaczyna się już od 100 m (lokalne promocje tuż obok).
-export const VOUCHER_DISTANCE_STEPS = [0.1, 0.25, 0.5, 1, 2, 5, 10, 25] as const;

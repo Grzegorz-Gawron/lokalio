@@ -270,11 +270,11 @@ function OrgProfilView({ onCancel }: { onCancel: () => void }) {
         <Field label="Linia adresu 2" className="flex-1"><input value={line2} onChange={(e) => setLine2(e.target.value)} placeholder="lok. 10" className={inputCls} /></Field>
       </div>
       <div className="flex gap-3">
-        <Field label="Miasto" className="flex-1"><input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Kraków" className={inputCls} /></Field>
-        <Field label="Województwo / region" className="flex-1"><input value={region} onChange={(e) => setRegion(e.target.value)} placeholder="małopolskie" className={inputCls} /></Field>
+        <Field label="Miasto" className="flex-1"><input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Sandomierz" className={inputCls} /></Field>
+        <Field label="Województwo / region" className="flex-1"><input value={region} onChange={(e) => setRegion(e.target.value)} placeholder="świętokrzyskie" className={inputCls} /></Field>
       </div>
       <div className="flex gap-3">
-        <Field label="Kod pocztowy" className="flex-1"><input value={postal} onChange={(e) => setPostal(e.target.value)} placeholder="30-001" className={inputCls} /></Field>
+        <Field label="Kod pocztowy" className="flex-1"><input value={postal} onChange={(e) => setPostal(e.target.value)} placeholder="27-600" className={inputCls} /></Field>
         <Field label="Kraj" className="flex-1">
           <select value={country} onChange={(e) => setCountry(e.target.value)} className={inputCls}>
             {COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
