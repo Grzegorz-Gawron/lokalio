@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { MapPin, Sparkles, Ticket, ChevronRight, ChevronLeft, Minus, Plus, Mail, LogIn, UserPlus, LocateFixed, Check } from 'lucide-react';
 import { useApp } from '../store/AppContext';
 import { Logo, LogoMark } from '../components/Logo';
-import { CATEGORY_META, CATEGORY_ORDER } from '../theme';
+import { CATEGORY_META } from '../theme';
+import { EVENT_GROUPS } from '../lib/business';
 import { cx, Chip } from '../components/ui';
 import { SELECTABLE_CITIES, cityById, nearestCity, DEFAULT_CITY_ID } from '../data/cities';
 import { emailHasAccount } from '../lib/backend';
@@ -19,7 +20,7 @@ export function Onboarding() {
   const [gender, setGender] = useState<Gender>('inna');
   const [cityId, setCityId] = useState(DEFAULT_CITY_ID);
   const [district, setDistrict] = useState('');
-  const [cats, setCats] = useState<CategoryKey[]>([]);
+  const [interests, setInterests] = useState<string[]>([]); // wybrane grupy zainteresowań (etykiety z EVENT_GROUPS)
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const [sending, setSending] = useState(false);
@@ -56,8 +57,10 @@ export function Onboarding() {
     );
   };
 
-  const toggleCat = (c: CategoryKey) =>
-    setCats((cur) => (cur.includes(c) ? cur.filter((x) => x !== c) : [...cur, c]));
+  const toggleInterest = (label: string) =>
+    setInterests((cur) => (cur.includes(label) ? cur.filter((x) => x !== label) : [...cur, label]));
+  // Wybrane grupy → odchudzone bazowe kategorie (CategoryKey) do personalizacji feedu/agenta.
+  const cats: CategoryKey[] = [...new Set(interests.map((l) => EVENT_GROUPS.find((g) => g.label === l)?.cat).filter((c): c is CategoryKey => !!c))];
 
   const pickCity = (id: string) => {
     setGpsCoords(null); // ręczny wybór miasta wyłącza GPS
@@ -342,13 +345,13 @@ export function Onboarding() {
             <h2 className="text-2xl font-extrabold tracking-tight text-ink">Co lubisz robić?</h2>
             <p className="mt-1 text-sm text-subtle">Wybierz kilka — dopasujemy feed i podpowiedzi agenta.</p>
             <div className="mt-5 grid grid-cols-2 gap-3">
-              {CATEGORY_ORDER.map((c) => {
-                const m = CATEGORY_META[c];
-                const on = cats.includes(c);
+              {EVENT_GROUPS.map((g) => {
+                const on = interests.includes(g.label);
+                const color = CATEGORY_META[g.cat].color;
                 return (
-                  <button key={c} onClick={() => toggleCat(c)} className={cx('flex flex-col items-start gap-2 rounded-2xl border-2 p-4 text-left transition active:scale-95', on ? 'border-transparent text-white shadow-card' : 'border-black/10 bg-paper')} style={on ? { background: m.color } : undefined}>
-                    <span className="text-2xl">{m.emoji}</span>
-                    <span className="text-[14px] font-bold">{m.label}</span>
+                  <button key={g.label} onClick={() => toggleInterest(g.label)} className={cx('flex flex-col items-start gap-2 rounded-2xl border-2 p-4 text-left transition active:scale-95', on ? 'border-transparent text-white shadow-card' : 'border-black/10 bg-paper')} style={on ? { background: color } : undefined}>
+                    <span className="text-2xl">{g.emoji}</span>
+                    <span className="text-[14px] font-bold leading-tight">{g.label}</span>
                   </button>
                 );
               })}
