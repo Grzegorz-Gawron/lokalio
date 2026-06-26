@@ -24,6 +24,7 @@ export function Onboarding() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [sent, setSent] = useState(false);
+  const [registered, setRegistered] = useState(false); // po rejestracji → ekran „potwierdź e-mail"
   const [sending, setSending] = useState(false);
   const [checking, setChecking] = useState(false);
   const [emailExists, setEmailExists] = useState(false);
@@ -91,13 +92,14 @@ export function Onboarding() {
         showToast(/at least 6|password should be/i.test(error) ? 'Hasło musi mieć min. 6 znaków.' : error, '⚠️');
         return;
       }
-      enterApp();
-      showToast(needsConfirm ? 'Konto utworzone — potwierdź e-mail (link w skrzynce)' : 'Konto utworzone — zalogowano', needsConfirm ? '📧' : '🎉');
+      setSending(false);
+      if (needsConfirm) setRegistered(true); // pokaż ekran „potwierdź e-mail"
+      else { enterApp(); showToast('Konto utworzone — zalogowano', '🎉'); }
     } else {
       // bez hasła — magic link potwierdza konto i synchronizuje profil
       if (email.trim()) await loginWithEmail(email);
-      enterApp();
-      showToast('Konto utworzone — sprawdź e-mail, by je potwierdzić', '📧');
+      setSending(false);
+      setRegistered(true); // link wysłany → ekran „potwierdź e-mail"
     }
   };
 
@@ -155,6 +157,31 @@ export function Onboarding() {
     else if (mode === 'register') finishRegister();
     else finishGuest();
   };
+
+  // ---------- POTWIERDŹ E-MAIL (po rejestracji) ----------
+  if (registered) {
+    return (
+      <div className="flex h-full flex-col bg-cream">
+        <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
+          <div className="text-6xl">📧</div>
+          <h2 className="mt-4 text-2xl font-extrabold tracking-tight text-ink">Potwierdź swój e-mail</h2>
+          <p className="mt-2 max-w-[310px] text-[14px] leading-relaxed text-subtle">
+            Wysłaliśmy link aktywacyjny na <span className="font-semibold text-ink">{email}</span>. Kliknij go w skrzynce, aby potwierdzić konto — wtedy Twój profil, oferty i meldunki zsynchronizują się na każdym urządzeniu.
+          </p>
+          <p className="mt-3 text-[12.5px] text-subtle">Nie widzisz wiadomości? Sprawdź folder „Spam".</p>
+        </div>
+        <div className="safe-bottom shrink-0 px-6 pb-6">
+          <button
+            onClick={enterApp}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-coral py-4 text-base font-bold text-white shadow-coral transition active:scale-[0.98]"
+          >
+            Wejdź do Lokalio <ChevronRight size={20} />
+          </button>
+          <p className="mt-2 text-center text-[12px] text-subtle">Możesz korzystać już teraz — potwierdzenie włącza synchronizację.</p>
+        </div>
+      </div>
+    );
+  }
 
   // ---------- WYBÓR ŚCIEŻKI ----------
   if (mode === 'choose') {
