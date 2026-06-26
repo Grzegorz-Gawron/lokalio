@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { MapPin, ChevronRight, Mic, Sparkles, ArrowUpRight, Search, Target, Clock } from 'lucide-react';
+import { MapPin, ChevronRight, Mic, Sparkles, ArrowUpRight, Search, Target, Clock, Flame, Gift } from 'lucide-react';
 import { useApp } from '../store/AppContext';
 import { CATEGORY_META, CATEGORY_ORDER } from '../theme';
 import { haversineKm, formatDistance, formatRadius, widerRadius } from '../lib/geo';
@@ -39,6 +39,19 @@ function Mascot({ size = 44, className = '' }: { size?: number; className?: stri
   );
 }
 const likesOf = (id: string) => 30 + (hashId(id + '♥') % 140); // ile polubień (sygnał popularności)
+
+// Pora dnia do powitania ("Wieczór w Sandomierzu").
+function partOfDay(): string {
+  const h = new Date().getHours();
+  if (h < 6) return 'Noc';
+  if (h < 12) return 'Ranek';
+  if (h < 18) return 'Popołudnie';
+  return 'Wieczór';
+}
+// Miejscownik nazw miast (pilotaż) — żeby „w Sandomierzu", nie „w Sandomierz".
+const CITY_LOCATIVE: Record<string, string> = {
+  Sandomierz: 'Sandomierzu', Tarnobrzeg: 'Tarnobrzegu', 'Stalowa Wola': 'Stalowej Woli', Opatów: 'Opatowie', Kraków: 'Krakowie',
+};
 
 // „za 45 min" / „za 2 h 10 min" — ile czasu do startu (sekcja „W okolicy teraz").
 function untilLabel(iso?: string): string {
@@ -93,6 +106,18 @@ export function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [venues, user.checkedInVenueId],
   );
+
+  // ile wydarzeń odbywa się TERAZ (start ≤ teraz ≤ koniec; bez endIso zakładamy ~3 h) — do paska „Miasto żyje teraz"
+  const trwaTeraz = useMemo(() => {
+    const now = Date.now();
+    return events.filter((e) => {
+      const start = +new Date(e.dateIso);
+      const end = e.endIso ? +new Date(e.endIso) : start + 3 * 3600 * 1000;
+      return start <= now && now <= end;
+    }).length;
+  }, [events]);
+  const cityAlive = peopleNow > 0 || trwaTeraz > 0;
+  const cityLoc = CITY_LOCATIVE[currentCity.name] ?? currentCity.name;
 
   // ——— Sekcja „W okolicy teraz": blisko (≤2 km) ORAZ start w ciągu najbliższych 4 h ———
   const okolicyTeraz = useMemo(() => {
@@ -218,7 +243,7 @@ export function Home() {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h1 className="text-[26px] font-extrabold leading-tight tracking-tight text-ink">Cześć, {user.name}! 👋</h1>
-            <p className="text-[15px] text-subtle">Odkrywaj, co dzieje się teraz w okolicy.</p>
+            <p className="text-[15px] text-subtle">{partOfDay()} w {cityLoc}</p>
           </div>
           <div className="mt-1 flex shrink-0 items-center gap-2">
             <button onClick={() => navigate({ name: 'search' })} aria-label="Szukaj" className="flex h-9 w-9 items-center justify-center rounded-full bg-paper text-coral shadow-sm active:scale-90">
@@ -241,17 +266,31 @@ export function Home() {
             {user.usesRealLocation ? 'Twoja lokalizacja' : user.district ? `${currentCity.name} · ${user.district}` : currentCity.name}
             <ChevronRight size={14} className="text-ink/30" />
           </button>
-          <button
-            onClick={() => setTab('map')}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-paper px-3.5 py-2 text-[13px] font-bold text-ink shadow-sm active:scale-95"
-          >
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-pulse-ring rounded-full bg-success" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
-            </span>
-            {peopleNow} osób w okolicy teraz
-          </button>
         </div>
+      </div>
+
+      {/* Puls miasta — żywe liczniki aktywności z realnych danych (zastępuje dawny chip „X osób") */}
+      <div className="px-4 pt-3">
+        <button
+          onClick={() => setTab('map')}
+          className="flex w-full items-center justify-between gap-3 rounded-card border border-coral/25 bg-paper p-3.5 text-left shadow-card active:scale-[0.99]"
+        >
+          <div className="min-w-0">
+            <p className="flex items-center gap-2 text-[14px] font-extrabold text-ink">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className={cx('absolute inline-flex h-full w-full rounded-full', cityAlive ? 'animate-pulse-ring bg-coral' : 'bg-ink/15')} />
+                <span className={cx('relative inline-flex h-2.5 w-2.5 rounded-full', cityAlive ? 'bg-coral' : 'bg-ink/25')} />
+              </span>
+              {cityAlive ? 'Miasto żyje teraz' : 'Spokojnie w okolicy'}
+            </p>
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-3.5 gap-y-1 text-[12.5px] font-semibold text-ink/70">
+              <span className="inline-flex items-center gap-1"><MapPin size={13} className="text-success" /> {peopleNow} w okolicy</span>
+              <span className="inline-flex items-center gap-1"><Flame size={13} className="text-coral" /> {trwaTeraz} {trwaTeraz === 1 ? 'trwa' : 'trwają'}</span>
+              <span className="inline-flex items-center gap-1"><Gift size={13} className="text-warning" /> {offers.length} ofert</span>
+            </div>
+          </div>
+          <ChevronRight size={18} className="shrink-0 text-ink/25" />
+        </button>
       </div>
 
       {/* Sekcja 1 — Hero AI */}
