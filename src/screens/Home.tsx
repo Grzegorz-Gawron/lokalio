@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { MapPin, ChevronRight, Mic, Sparkles, ArrowUpRight, Search, Target, Clock, Flame, Gift } from 'lucide-react';
+import { MapPin, ChevronRight, Mic, ArrowUpRight, Search, Target, Clock, Flame, Gift } from 'lucide-react';
 import { useApp } from '../store/AppContext';
 import { CATEGORY_META, CATEGORY_ORDER } from '../theme';
 import { haversineKm, formatDistance, formatRadius, widerRadius } from '../lib/geo';
@@ -293,38 +293,29 @@ export function Home() {
         </button>
       </div>
 
-      {/* Sekcja 1 — Hero AI */}
-      <div className="px-4 pt-2">
-        <div className="overflow-hidden rounded-[20px] p-4 text-white shadow-coral" style={{ background: 'linear-gradient(125deg, #FF8275, #FF5A4D 55%, #E84B3F)' }}>
-          <div className="flex items-center gap-3">
-            <span className="flex h-[62px] w-[62px] shrink-0 items-center justify-center rounded-full bg-white/25 ring-1 ring-white/30">
-              <Mascot size={54} className="animate-bob drop-shadow" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-[20px] font-extrabold leading-tight">Co dziś chcesz zrobić?</p>
-              <p className="mt-0.5 text-[13px] leading-snug text-white/85">Powiedz, na co masz ochotę — podpowiem.</p>
-            </div>
-          </div>
-          <div className="mt-3 flex items-center gap-1 rounded-full bg-paper px-2 py-1.5 shadow-sm">
-            <button onClick={() => setTab('agent')} className="flex min-w-0 flex-1 items-center gap-2 rounded-full px-2.5 py-1.5 text-left active:scale-[0.99]">
-              <Sparkles size={17} className="shrink-0 text-coral" />
-              <span className="flex-1 truncate text-[14px] text-ink/40">Zapytaj Lokalio…</span>
+      {/* Sekcja 1 — AI (kompaktowy wjazd do agenta) */}
+      <div className="px-4 pt-3">
+        <div className="flex items-center gap-3 rounded-card bg-paper p-3 shadow-card">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-coral">
+            <Mascot size={30} />
+          </span>
+          <button onClick={() => setTab('agent')} className="min-w-0 flex-1 text-left active:scale-[0.99]">
+            <span className="block truncate text-[14px] text-subtle">Zapytaj Lokalio, na co masz ochotę…</span>
+          </button>
+          <button onClick={() => { setArmAgentVoice(true); setTab('agent'); }} aria-label="Mów do Lokalio" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-coral/10 text-coral active:scale-90">
+            <Mic size={18} />
+          </button>
+        </div>
+        <div className="mt-2.5 flex gap-2 overflow-x-auto no-scrollbar">
+          {MOODS.map((m) => (
+            <button
+              key={m.label}
+              onClick={() => setTab('agent')}
+              className="inline-flex shrink-0 items-center gap-1 rounded-full bg-paper px-3 py-1.5 text-[12.5px] font-bold text-ink shadow-sm active:scale-95"
+            >
+              <span>{m.emoji}</span> {m.label}
             </button>
-            <button onClick={() => { setArmAgentVoice(true); setTab('agent'); }} aria-label="Mów do Lokalio" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-coral/10 text-coral active:scale-90">
-              <Mic size={17} />
-            </button>
-          </div>
-          <div className="mt-3 flex gap-2 overflow-x-auto no-scrollbar">
-            {MOODS.map((m) => (
-              <button
-                key={m.label}
-                onClick={() => setTab('agent')}
-                className="inline-flex shrink-0 items-center gap-1 rounded-full bg-paper px-3 py-1.5 text-[12.5px] font-bold text-ink shadow-sm active:scale-95"
-              >
-                <span>{m.emoji}</span> {m.label}
-              </button>
-            ))}
-          </div>
+          ))}
         </div>
       </div>
 
