@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Heart, Ticket, MapPin, Eye, ChevronRight, LogOut, Store, Mail, Check, LogIn, Moon, Pencil, UserPlus, Bell, Target } from 'lucide-react';
 import { useApp } from '../store/AppContext';
-import { getEnabledOAuth } from '../lib/backend';
 import { BADGES, organizerById, venueById, offerById, eventById, offersForVenue, activeVenues } from '../data/seed';
 import { CATEGORY_META } from '../theme';
 import { isToday } from '../lib/format';
@@ -26,7 +25,7 @@ function timeAgo(at: number): string {
 }
 
 export function ProfileScreen() {
-  const { user, stats, currentCity, checkinHistory, redeemedOfferIds, activeVouchers, navigate, resetApp, isFollowing, toggleFollow, authEnabled, account, loginWithEmail, loginWithPassword, registerWithPassword, loginWithProvider, logout, showToast, theme, toggleTheme, unseenNotifs, radiusKm, setRadiusKm } = useApp();
+  const { user, stats, currentCity, checkinHistory, redeemedOfferIds, activeVouchers, navigate, resetApp, isFollowing, toggleFollow, authEnabled, account, loginWithEmail, loginWithPassword, registerWithPassword, logout, showToast, theme, toggleTheme, unseenNotifs, radiusKm, setRadiusKm } = useApp();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [locOpen, setLocOpen] = useState(false);
@@ -34,12 +33,6 @@ export function ProfileScreen() {
   const [sending, setSending] = useState(false);
   const [authBusy, setAuthBusy] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
-  const [oauth, setOauth] = useState<{ google: boolean; apple: boolean }>({ google: false, apple: false });
-  useEffect(() => { if (authEnabled && !account) getEnabledOAuth().then(setOauth); }, [authEnabled, account]);
-  const social = async (p: 'google' | 'apple') => {
-    const { error } = await loginWithProvider(p);
-    if (error) showToast(/not enabled|disabled|provider/i.test(error) ? `Logowanie ${p === 'google' ? 'Google' : 'Apple'} nie jest jeszcze włączone w Supabase.` : error, '⚠️');
-  };
   const authMsg = (e: string) => {
     if (/invalid login credentials/i.test(e)) return 'Błędny e-mail lub hasło.';
     if (/already registered|already exists/i.test(e)) return 'Konto z tym e-mailem już istnieje — zaloguj się.';
@@ -203,25 +196,6 @@ export function ProfileScreen() {
             <div className="rounded-card bg-paper p-4 shadow-card">
               <p className="flex items-center gap-2 text-[14px] font-bold text-ink"><LogIn size={16} className="text-coral" /> Załóż konto / zaloguj się</p>
               <p className="mt-0.5 text-[12.5px] text-subtle">Profil, punkty i Twoje treści zapiszą się w chmurze — z dostępem z wielu urządzeń.</p>
-              {(oauth.google || oauth.apple) && (
-                <>
-                  <div className="mt-3 space-y-2">
-                    {oauth.google && (
-                      <button onClick={() => social('google')} className="flex w-full items-center justify-center gap-2 rounded-xl border border-black/10 bg-paper py-2.5 text-[13.5px] font-bold text-ink active:scale-95">
-                        <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.4 29.3 35 24 35c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 19.7-8 19.7-20 0-1.3-.1-2.5-.4-3.5z" /><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 16 19 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" /><path fill="#4CAF50" d="M24 44c5.2 0 10-2 13.6-5.2l-6.3-5.3C29.2 35.1 26.7 36 24 36c-5.3 0-9.7-3.6-11.3-8.4l-6.5 5C9.5 39.6 16.2 44 24 44z" /><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.2-4.1 5.5l6.3 5.3C39.5 41.4 44 35.5 44 24c0-1.3-.1-2.5-.4-3.5z" /></svg>
-                        Kontynuuj z Google
-                      </button>
-                    )}
-                    {oauth.apple && (
-                      <button onClick={() => social('apple')} className="flex w-full items-center justify-center gap-2 rounded-xl bg-ink py-2.5 text-[13.5px] font-bold text-white active:scale-95">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.365 1.43c0 1.14-.467 2.22-1.215 3.01-.8.85-2.09 1.5-3.18 1.42-.13-1.09.42-2.24 1.13-2.98.79-.83 2.17-1.46 3.27-1.45zM20.5 17.04c-.55 1.27-.82 1.84-1.53 2.96-.99 1.56-2.39 3.5-4.12 3.51-1.54.02-1.94-1-4.03-.99-2.09.01-2.53 1.01-4.07.99-1.73-.02-3.05-1.77-4.04-3.33-2.77-4.36-3.06-9.48-1.35-12.2 1.21-1.93 3.13-3.06 4.93-3.06 1.83 0 2.98 1.01 4.49 1.01 1.47 0 2.36-1.01 4.48-1.01 1.6 0 3.3.87 4.51 2.38-3.96 2.17-3.32 7.82.25 9.78z" /></svg>
-                        Kontynuuj z Apple
-                      </button>
-                    )}
-                  </div>
-                  <div className="my-3 flex items-center gap-2"><div className="h-px flex-1 bg-black/10" /><span className="text-[11px] text-subtle">lub e-mailem</span><div className="h-px flex-1 bg-black/10" /></div>
-                </>
-              )}
               <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoComplete="email" placeholder="twój@email.pl" className="mt-2.5 w-full rounded-xl border border-black/10 bg-paper px-3.5 py-2.5 text-[14px] outline-none focus:border-coral" />
               <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete="current-password" placeholder="Hasło (min. 6 znaków)" className="mt-2 w-full rounded-xl border border-black/10 bg-paper px-3.5 py-2.5 text-[14px] outline-none focus:border-coral" />
               <div className="mt-2.5 flex gap-2">

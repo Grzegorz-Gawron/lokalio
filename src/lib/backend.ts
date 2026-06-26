@@ -66,27 +66,6 @@ export async function signUpWithPassword(email: string, password: string): Promi
   return { error: null, needsConfirm: !data.session };
 }
 
-/** Logowanie społecznościowe (Google/Apple). Po sukcesie przeglądarka przekierowuje do providera. */
-export async function signInWithProvider(provider: 'google' | 'apple'): Promise<{ error: string | null }> {
-  if (!supabase) return { error: 'Supabase nie jest skonfigurowany.' };
-  const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: window.location.origin } });
-  return { error: error?.message ?? null };
-}
-
-/** Którzy dostawcy OAuth są włączeni w projekcie — żeby pokazać tylko działające przyciski. */
-export async function getEnabledOAuth(): Promise<{ google: boolean; apple: boolean }> {
-  if (!supabaseEnabled) return { google: false, apple: false };
-  try {
-    const url = (import.meta.env.VITE_SUPABASE_URL ?? '').trim();
-    const key = (import.meta.env.VITE_SUPABASE_ANON_KEY ?? '').trim();
-    const res = await fetch(`${url}/auth/v1/settings`, { headers: { apikey: key } });
-    const d = (await res.json()) as { external?: Record<string, boolean> };
-    return { google: !!d?.external?.google, apple: !!d?.external?.apple };
-  } catch {
-    return { google: false, apple: false };
-  }
-}
-
 /**
  * Czy e-mail ma już konto. Supabase nie ujawnia tego wprost (ochrona przed enumeracją),
  * więc próbujemy logowania BEZ tworzenia konta: brak błędu = konto istnieje (i właśnie

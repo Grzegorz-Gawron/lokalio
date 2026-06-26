@@ -30,7 +30,7 @@ import { CITIES, DEFAULT_CITY_ID, cityById, cityIdOf, nearestCity, type City } f
 import { loadLivePlaces } from '../lib/places';
 import { buildNotifications, NOTIF_SEEN_KEY, type NotifItem } from '../lib/notifications';
 import {
-  authEnabled, getSessionInfo, onAuthChange, signInWithEmail, signInWithPassword, signUpWithPassword, signInWithProvider, signOut, upsertProfile, updatePoints, loadProfile,
+  authEnabled, getSessionInfo, onAuthChange, signInWithEmail, signInWithPassword, signUpWithPassword, signOut, upsertProfile, updatePoints, loadProfile,
   dbCheckin, dbActivateVoucher, dbSetVoucherStatus, dbSetSave, dbSetFollow, dbSetFriend,
   dbLoadOwnerContent, dbUpsertOwner, dbDeleteOwner,
   type SessionInfo,
@@ -211,7 +211,6 @@ interface Ctx {
   loginWithEmail: (email: string) => Promise<{ error: string | null }>;
   loginWithPassword: (email: string, password: string) => Promise<{ error: string | null }>;
   registerWithPassword: (email: string, password: string) => Promise<{ error: string | null; needsConfirm: boolean }>;
-  loginWithProvider: (provider: 'google' | 'apple') => Promise<{ error: string | null }>;
   logout: () => void;
 
   showToast: (text: string, emoji?: string) => void;
@@ -890,7 +889,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const loginWithEmail = useCallback((email: string) => signInWithEmail(email), []);
   const loginWithPassword = useCallback((email: string, password: string) => signInWithPassword(email, password), []);
   const registerWithPassword = useCallback((email: string, password: string) => signUpWithPassword(email, password), []);
-  const loginWithProvider = useCallback((provider: 'google' | 'apple') => signInWithProvider(provider), []);
   const logout = useCallback(async () => {
     await signOut();
     setAccount(null);
@@ -987,7 +985,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     loginWithEmail,
     loginWithPassword,
     registerWithPassword,
-    loginWithProvider,
     logout,
     showToast,
     theme,
