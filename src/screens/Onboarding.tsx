@@ -12,7 +12,7 @@ import type { CategoryKey, Gender, LatLng } from '../types';
 type Mode = 'choose' | 'guest' | 'register' | 'login';
 
 export function Onboarding() {
-  const { onboard, loginWithEmail, showToast } = useApp();
+  const { onboard, loginWithEmail, loginWithPassword, registerWithPassword, showToast } = useApp();
   const [mode, setMode] = useState<Mode>('choose');
   const [step, setStep] = useState(0);
   const [name, setName] = useState('');
@@ -22,6 +22,7 @@ export function Onboarding() {
   const [district, setDistrict] = useState('');
   const [interests, setInterests] = useState<string[]>([]); // wybrane grupy zainteresowań (etykiety z EVENT_GROUPS)
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [sent, setSent] = useState(false);
   const [sending, setSending] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -71,13 +72,42 @@ export function Onboarding() {
 
   const finishGuest = () => onboard({ name, age, gender, cityId, district, coords: coordsFor(), usesRealLocation: !!gpsCoords, preferredCategories: cats });
 
+  const enterApp = () => onboard({ name, age, gender, cityId, district, coords: coordsFor(), usesRealLocation: !!gpsCoords, preferredCategories: cats });
+
   const finishRegister = async () => {
     if (sending) return;
     setSending(true);
-    if (email.trim()) await loginWithEmail(email);
-    // utwórz konto lokalnie + wejdź; magic link potwierdza konto i synchronizuje profil
-    onboard({ name, age, gender, cityId, district, coords: coordsFor(), usesRealLocation: !!gpsCoords, preferredCategories: cats });
-    showToast('Konto utworzone — sprawdź e-mail, by je potwierdzić', '📧');
+    const pwd = password.trim();
+    if (pwd.length >= 6) {
+      // konto z własnym hasłem — od razu zalogowany (lub potwierdzenie e-mail, zależnie od konfiguracji Supabase)
+      const { error, needsConfirm } = await registerWithPassword(email, pwd);
+      if (error) {
+        setSending(false);
+        if (/already registered|already exists/i.test(error)) {
+          showToast('Ten e-mail ma już konto — zaloguj się.', '⚠️');
+          setMode('login'); setSent(false);
+          return;
+        }
+        showToast(/at least 6|password should be/i.test(error) ? 'Hasło musi mieć min. 6 znaków.' : error, '⚠️');
+        return;
+      }
+      enterApp();
+      showToast(needsConfirm ? 'Konto utworzone — potwierdź e-mail (link w skrzynce)' : 'Konto utworzone — zalogowano', needsConfirm ? '📧' : '🎉');
+    } else {
+      // bez hasła — magic link potwierdza konto i synchronizuje profil
+      if (email.trim()) await loginWithEmail(email);
+      enterApp();
+      showToast('Konto utworzone — sprawdź e-mail, by je potwierdzić', '📧');
+    }
+  };
+
+  const submitLogin = async () => {
+    if (!email.trim() || !password.trim() || sending) return;
+    setSending(true);
+    const { error } = await loginWithPassword(email, password);
+    setSending(false);
+    if (error) showToast(/invalid login credentials/i.test(error) ? 'Błędny e-mail lub hasło.' : /email not confirmed/i.test(error) ? 'Najpierw potwierdź e-mail (link w skrzynce).' : error, '⚠️');
+    // sukces: AppContext (onAuthChange) wykryje sesję, utworzy użytkownika i wejdzie do apki
   };
 
   const sendLoginLink = async () => {
@@ -104,6 +134,10 @@ export function Onboarding() {
     if (mode === 'register' && step === 0) {
       if (!email.trim()) {
         showToast('Podaj e-mail, aby założyć konto', '⚠️');
+        return;
+      }
+      if (password.trim() && password.trim().length < 6) {
+        showToast('Hasło musi mieć min. 6 znaków', '⚠️');
         return;
       }
       setChecking(true);
@@ -191,23 +225,39 @@ export function Onboarding() {
           ) : (
             <>
               <h2 className="text-2xl font-extrabold tracking-tight text-ink">Zaloguj się</h2>
-              <p className="mt-1 text-sm text-subtle">Magic link na e-mail — bez hasła.</p>
+              <p className="mt-1 text-sm text-subtle">E-mailem i hasłem — albo linkiem bez hasła.</p>
               <input
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 type="email"
+                autoComplete="email"
                 placeholder="twój@email.pl"
                 className="mt-5 w-full rounded-xl border border-black/10 bg-paper px-4 py-3 text-[15px] outline-none focus:border-coral"
               />
+              <input
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                type="password"
+                autoComplete="current-password"
+                placeholder="Hasło"
+                className="mt-3 w-full rounded-xl border border-black/10 bg-paper px-4 py-3 text-[15px] outline-none focus:border-coral"
+              />
+              <button
+                onClick={submitLogin}
+                disabled={!email.trim() || !password.trim() || sending}
+                className={cx(
+                  'mt-4 flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 text-[15px] font-bold transition active:scale-[0.98]',
+                  email.trim() && password.trim() && !sending ? 'bg-coral text-white shadow-coral' : 'bg-black/10 text-ink/40',
+                )}
+              >
+                <LogIn size={18} /> {sending ? 'Loguję…' : 'Zaloguj się'}
+              </button>
               <button
                 onClick={sendLoginLink}
                 disabled={!email.trim() || sending}
-                className={cx(
-                  'mt-4 flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 text-[15px] font-bold transition active:scale-[0.98]',
-                  email.trim() && !sending ? 'bg-coral text-white shadow-coral' : 'bg-black/10 text-ink/40',
-                )}
+                className="mt-3 inline-flex items-center gap-1.5 text-[13px] font-bold text-coral disabled:opacity-50"
               >
-                <Mail size={18} /> {sending ? 'Wysyłam…' : 'Wyślij link logowania'}
+                <Mail size={15} /> lub wyślij link bez hasła
               </button>
             </>
           )}
@@ -275,11 +325,22 @@ export function Onboarding() {
                 {emailExists ? (
                   <div className="mt-2 rounded-xl bg-danger/10 p-3">
                     <p className="flex items-center gap-1.5 text-[13px] font-bold text-danger">⚠️ Ten e-mail ma już konto</p>
-                    <p className="mt-0.5 text-[12.5px] text-ink/70">Wysłaliśmy na niego link logowania — kliknij go, albo przejdź do logowania.</p>
-                    <button onClick={() => { setMode('login'); setSent(true); }} className="mt-2 text-[13px] font-bold text-coral">Przejdź do logowania →</button>
+                    <p className="mt-0.5 text-[12.5px] text-ink/70">Zaloguj się hasłem albo linkiem, który wysłaliśmy na ten adres.</p>
+                    <button onClick={() => { setMode('login'); setSent(false); }} className="mt-2 text-[13px] font-bold text-coral">Przejdź do logowania →</button>
                   </div>
                 ) : (
-                  <p className="mt-1.5 text-[12px] text-subtle">Bez hasła — wyślemy link potwierdzający. Konto daje oferty, promocje i synchronizację.</p>
+                  <>
+                    <label className="mt-4 block text-[13px] font-bold text-ink/70">Hasło (opcjonalnie)</label>
+                    <input
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      type="password"
+                      autoComplete="new-password"
+                      placeholder="Utwórz hasło (min. 6 znaków)"
+                      className="mt-2 w-full rounded-xl border border-black/10 bg-paper px-4 py-3 text-[15px] outline-none focus:border-coral"
+                    />
+                    <p className="mt-1.5 text-[12px] text-subtle">Z hasłem zalogujesz się od razu. Zostaw puste — wyślemy link bez hasła. Konto daje oferty, promocje i synchronizację.</p>
+                  </>
                 )}
               </>
             )}
