@@ -17,7 +17,7 @@ export function Onboarding() {
   const [step, setStep] = useState(0);
   const [name, setName] = useState('');
   const [age, setAge] = useState(25);
-  const [gender, setGender] = useState<Gender>('inna');
+  const [gender, setGender] = useState<Gender | null>(null); // opcjonalne — nic nie zaznaczone domyślnie
   const [cityId, setCityId] = useState(DEFAULT_CITY_ID);
   const [district, setDistrict] = useState('');
   const [interests, setInterests] = useState<string[]>([]); // wybrane grupy zainteresowań (etykiety z EVENT_GROUPS)
@@ -72,9 +72,9 @@ export function Onboarding() {
     setDistrict(c.districts[0]?.district ?? '');
   };
 
-  const finishGuest = () => onboard({ name, age, gender, cityId, district, coords: coordsFor(), usesRealLocation: !!gpsCoords, preferredCategories: cats });
+  const finishGuest = () => onboard({ name, age, gender: gender ?? 'inna', cityId, district, coords: coordsFor(), usesRealLocation: !!gpsCoords, preferredCategories: cats });
 
-  const enterApp = () => onboard({ name, age, gender, cityId, district, coords: coordsFor(), usesRealLocation: !!gpsCoords, preferredCategories: cats });
+  const enterApp = () => onboard({ name, age, gender: gender ?? 'inna', cityId, district, coords: coordsFor(), usesRealLocation: !!gpsCoords, preferredCategories: cats });
 
   const finishRegister = async () => {
     if (sending) return;
@@ -82,18 +82,18 @@ export function Onboarding() {
     const pwd = password.trim();
     if (pwd.length >= 6) {
       // konto z własnym hasłem — od razu zalogowany (lub potwierdzenie e-mail, zależnie od konfiguracji Supabase)
-      const { error, needsConfirm } = await registerWithPassword(email, pwd);
+      const { error, needsConfirm, alreadyExists } = await registerWithPassword(email, pwd);
+      setSending(false);
       if (error) {
-        setSending(false);
-        if (/already registered|already exists/i.test(error)) {
-          showToast('Ten e-mail ma już konto — zaloguj się.', '⚠️');
-          setMode('login'); setSent(false);
-          return;
-        }
         showToast(/at least 6|password should be/i.test(error) ? 'Hasło musi mieć min. 6 znaków.' : error, '⚠️');
         return;
       }
-      setSending(false);
+      if (alreadyExists) {
+        // ten e-mail ma już konto — Supabase nie wyśle linka; kieruj na logowanie
+        showToast('Ten e-mail ma już konto — zaloguj się.', '⚠️');
+        setMode('login'); setSent(false);
+        return;
+      }
       if (needsConfirm) setRegistered(true); // pokaż ekran „potwierdź e-mail"
       else { enterApp(); showToast('Konto utworzone — zalogowano', '🎉'); }
     } else {
@@ -348,10 +348,10 @@ export function Onboarding() {
               <button onClick={() => setAge((a) => Math.min(99, a + 1))} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-coral text-white active:scale-90"><Plus size={18} /></button>
             </div>
 
-            <label className="mt-5 block text-[13px] font-bold text-ink/70">Płeć</label>
+            <label className="mt-5 block text-[13px] font-bold text-ink/70">Płeć <span className="font-medium text-subtle">(opcjonalnie)</span></label>
             <div className="mt-2 grid grid-cols-3 gap-2">
               {[{ v: 'k' as Gender, l: 'Kobieta' }, { v: 'm' as Gender, l: 'Mężczyzna' }, { v: 'inna' as Gender, l: 'Inna' }].map((o) => (
-                <button key={o.v} onClick={() => setGender(o.v)} className={cx('rounded-xl border py-3 text-[14px] font-semibold transition active:scale-95', gender === o.v ? 'border-coral bg-coral text-white shadow-coral' : 'border-black/10 bg-paper text-ink/70')}>{o.l}</button>
+                <button key={o.v} onClick={() => setGender(gender === o.v ? null : o.v)} className={cx('rounded-xl border py-3 text-[14px] font-semibold transition active:scale-95', gender === o.v ? 'border-coral bg-coral text-white shadow-coral' : 'border-black/10 bg-paper text-ink/70')}>{o.l}</button>
               ))}
             </div>
 

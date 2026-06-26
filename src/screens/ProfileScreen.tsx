@@ -56,9 +56,10 @@ export function ProfileScreen() {
       setAuthBusy(false);
       if (error) showToast(authMsg(error), '⚠️'); else showToast('Zalogowano', '✅');
     } else {
-      const { error, needsConfirm } = await registerWithPassword(email, password);
+      const { error, needsConfirm, alreadyExists } = await registerWithPassword(email, password);
       setAuthBusy(false);
       if (error) showToast(authMsg(error), '⚠️');
+      else if (alreadyExists) showToast('Ten e-mail ma już konto — zaloguj się.', '⚠️');
       else if (needsConfirm) setSentMsg(`Wysłaliśmy link na ${email}. Potwierdź konto, aby się zalogować.`);
       else showToast('Konto założone — zalogowano', '🎉');
     }

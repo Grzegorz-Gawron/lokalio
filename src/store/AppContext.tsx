@@ -211,7 +211,7 @@ interface Ctx {
   // konto (Supabase)
   loginWithEmail: (email: string) => Promise<{ error: string | null }>;
   loginWithPassword: (email: string, password: string) => Promise<{ error: string | null }>;
-  registerWithPassword: (email: string, password: string) => Promise<{ error: string | null; needsConfirm: boolean }>;
+  registerWithPassword: (email: string, password: string) => Promise<{ error: string | null; needsConfirm: boolean; alreadyExists: boolean }>;
   logout: () => void;
 
   showToast: (text: string, emoji?: string) => void;

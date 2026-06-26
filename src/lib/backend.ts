@@ -58,12 +58,20 @@ export async function signInWithPassword(email: string, password: string): Promi
   return { error: error?.message ?? null };
 }
 
-/** Założenie konta e-mail + hasło. needsConfirm = true → trzeba potwierdzić e-mail (brak sesji od razu). */
-export async function signUpWithPassword(email: string, password: string): Promise<{ error: string | null; needsConfirm: boolean }> {
-  if (!supabase) return { error: 'Supabase nie jest skonfigurowany.', needsConfirm: false };
+/**
+ * Założenie konta e-mail + hasło. needsConfirm = true → trzeba potwierdzić e-mail (brak sesji od razu).
+ * alreadyExists = true → ten e-mail ma już konto (Supabase z ochrony przed enumeracją nie zwraca błędu
+ * ani nie wysyła maila, tylko usera z PUSTĄ listą identities) → trzeba skierować na logowanie.
+ */
+export async function signUpWithPassword(email: string, password: string): Promise<{ error: string | null; needsConfirm: boolean; alreadyExists: boolean }> {
+  if (!supabase) return { error: 'Supabase nie jest skonfigurowany.', needsConfirm: false, alreadyExists: false };
   const { data, error } = await supabase.auth.signUp({ email: email.trim(), password, options: { emailRedirectTo: window.location.origin } });
-  if (error) return { error: error.message, needsConfirm: false };
-  return { error: null, needsConfirm: !data.session };
+  if (error) {
+    if (/already registered|already exists/i.test(error.message)) return { error: null, needsConfirm: false, alreadyExists: true };
+    return { error: error.message, needsConfirm: false, alreadyExists: false };
+  }
+  const alreadyExists = Array.isArray(data.user?.identities) && data.user!.identities!.length === 0;
+  return { error: null, needsConfirm: !data.session, alreadyExists };
 }
 
 /**
