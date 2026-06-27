@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MapPin, Sparkles, Ticket, ChevronRight, ChevronLeft, Minus, Plus, Mail, LogIn, UserPlus, LocateFixed, Check } from 'lucide-react';
+import { MapPin, Sparkles, Ticket, ChevronRight, ChevronLeft, Minus, Plus, Mail, LogIn, UserPlus, LocateFixed, Check, Eye, EyeOff } from 'lucide-react';
 import { useApp } from '../store/AppContext';
 import { Logo, LogoMark } from '../components/Logo';
 import { CATEGORY_META } from '../theme';
@@ -25,6 +25,7 @@ export function Onboarding() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [usePwd, setUsePwd] = useState(false); // hasło jako ukryta opcja (domyślnie link bez hasła)
+  const [showLoginPwd, setShowLoginPwd] = useState(false); // podgląd hasła na ekranie logowania
   const [sent, setSent] = useState(false);
   const [registered, setRegistered] = useState(false); // po rejestracji → ekran „potwierdź e-mail"
   const [resending, setResending] = useState(false);
@@ -278,14 +279,19 @@ export function Onboarding() {
                 placeholder="twój@email.pl"
                 className="mt-5 w-full rounded-xl border border-black/10 bg-paper px-4 py-3 text-[15px] outline-none focus:border-coral"
               />
-              <input
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                type="password"
-                autoComplete="current-password"
-                placeholder="Hasło"
-                className="mt-3 w-full rounded-xl border border-black/10 bg-paper px-4 py-3 text-[15px] outline-none focus:border-coral"
-              />
+              <div className="relative mt-3">
+                <input
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  type={showLoginPwd ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  placeholder="Hasło"
+                  className="w-full rounded-xl border border-black/10 bg-paper px-4 py-3 pr-11 text-[15px] outline-none focus:border-coral"
+                />
+                <button type="button" onClick={() => setShowLoginPwd((s) => !s)} aria-label={showLoginPwd ? 'Ukryj hasło' : 'Pokaż hasło'} className="absolute right-3 top-1/2 -translate-y-1/2 text-ink/40 active:scale-90">
+                  {showLoginPwd ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
               <button
                 onClick={submitLogin}
                 disabled={!email.trim() || !password.trim() || sending}
