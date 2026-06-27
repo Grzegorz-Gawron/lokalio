@@ -2,7 +2,7 @@ import { ChevronLeft, ChevronRight, Share2, Heart, MapPin, Users, Clock, Ticket,
 import { useApp } from '../store/AppContext';
 import { offerById, venueById, organizerById, offersForVenue, eventsForVenue } from '../data/seed';
 import { haversineKm, formatDistance } from '../lib/geo';
-import { openDirections } from '../lib/maps';
+import { openVenueDirections } from '../lib/maps';
 import { hashId, photoUrl } from '../lib/photos';
 import { interestOf } from '../lib/stats';
 import { StaticMap } from '../components/StaticMap';
@@ -10,7 +10,7 @@ import { cx } from '../components/ui';
 import type { Offer, Venue, LatLng } from '../types';
 
 export function OfferDetail({ id }: { id: string }) {
-  const { user, offers, account, back, navigate, setTab, openShare, isSavedOffer, toggleSaveOffer, activeVoucherFor, activateVoucher, redeemedOfferIds, showToast, isFollowing, toggleFollow } = useApp();
+  const { user, offers, account, back, navigate, setTab, openShare, isSavedOffer, toggleSaveOffer, activeVoucherFor, activateVoucher, redeemedOfferIds, showToast, isFollowing, toggleFollow, currentCity } = useApp();
   const offer = offers.find((o) => o.id === id) ?? offerById(id);
 
   if (!user || !offer) return null;
@@ -47,7 +47,7 @@ export function OfferDetail({ id }: { id: string }) {
     <div className="flex h-full flex-col bg-cream">
       <div className="flex-1 overflow-y-auto no-scrollbar">
         <OfferDetailContent
-          offer={offer} venue={venue} km={km} saved={saved} following={followingVenue} checkedInHere={checkedInHere} redeemed={redeemed} userCoords={user.coords}
+          offer={offer} venue={venue} km={km} saved={saved} following={followingVenue} checkedInHere={checkedInHere} redeemed={redeemed} userCoords={user.coords} cityName={currentCity.name}
           onBack={back} onSave={() => toggleSaveOffer(offer.id)} onShare={() => openShare(offer.title)}
           onOpenVenue={venue ? () => navigate({ name: 'venue', id: venue.id }) : undefined}
         />
@@ -118,7 +118,7 @@ function accessBadges(offer: Offer): { label: string; cls: string }[] {
  * Treść ekranu promocji/oferty — współdzielona przez ekran klienta i podgląd w panelu.
  * `preview` ukrywa elementy zależne od kontekstu (odległość, „Prowadź").
  */
-export function OfferDetailContent({ offer, venue, preview = false, km, saved = false, following = false, checkedInHere = false, redeemed = false, userCoords, onBack, onSave, onShare, onOpenVenue }: {
+export function OfferDetailContent({ offer, venue, preview = false, km, saved = false, following = false, checkedInHere = false, redeemed = false, userCoords, cityName, onBack, onSave, onShare, onOpenVenue }: {
   offer: Offer;
   venue?: Venue;
   preview?: boolean;
@@ -128,6 +128,7 @@ export function OfferDetailContent({ offer, venue, preview = false, km, saved = 
   checkedInHere?: boolean;
   redeemed?: boolean;
   userCoords?: LatLng;
+  cityName?: string; // fallback miasta dla nawigacji „Prowadź"
   onBack?: () => void;
   onSave?: () => void;
   onShare?: () => void;
@@ -229,7 +230,7 @@ export function OfferDetailContent({ offer, venue, preview = false, km, saved = 
                 </div>
                 {onOpenVenue && <ChevronRight size={18} className="shrink-0 text-ink/30" />}
               </button>
-              {!preview && <button onClick={() => openDirections(venue.coords)} className="inline-flex shrink-0 items-center gap-1 rounded-full border border-coral/30 bg-coral/5 px-3 py-2 text-[12.5px] font-bold text-coral active:scale-95"><Navigation size={14} /> Prowadź</button>}
+              {!preview && <button onClick={() => openVenueDirections(venue, cityName)} className="inline-flex shrink-0 items-center gap-1 rounded-full border border-coral/30 bg-coral/5 px-3 py-2 text-[12.5px] font-bold text-coral active:scale-95"><Navigation size={14} /> Prowadź</button>}
             </div>
             <div className="mt-2 h-28 overflow-hidden rounded-card shadow-card">
               <StaticMap coords={venue.coords} color={venue.color} emoji={venue.emoji} label={venue.name} userCoords={userCoords} />

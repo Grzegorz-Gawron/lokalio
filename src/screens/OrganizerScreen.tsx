@@ -7,6 +7,7 @@ import { CATEGORY_META } from '../theme';
 import { photoUrl } from '../lib/photos';
 import { cx, CategoryTag, EmptyState } from '../components/ui';
 import { fmtDays } from './VenueDetail';
+import { openDirections, addressQuery } from '../lib/maps';
 import type { Organizer } from '../types';
 
 export function OrganizerScreen({ id }: { id: string }) {
@@ -21,7 +22,7 @@ export function OrganizerScreen({ id }: { id: string }) {
 
 // Treść ekranu organizatora — współdzielona przez ekran konsumencki i podgląd w panelu firmowym.
 export function OrganizerScreenContent({ org, preview, onEdit }: { org: Organizer; preview?: boolean; onEdit?: () => void }) {
-  const { back, isFollowing, toggleFollow } = useApp();
+  const { back, isFollowing, toggleFollow, currentCity } = useApp();
   const { eventTile, distOf } = useTileBuilders();
   const events = eventsForOrganizer(org.id);
   const venue = org.kind === 'lokal' ? venueForOrganizer(org.id) : undefined;
@@ -88,7 +89,7 @@ export function OrganizerScreenContent({ org, preview, onEdit }: { org: Organize
               {addrL2 && <p className="text-[13px] text-ink/70">{addrL2}</p>}
             </div>
             <button
-              onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(org.address!)}`, '_blank')}
+              onClick={() => openDirections({ address: addressQuery([addrL1, addrL2 || currentCity.name]) })}
               className="inline-flex shrink-0 items-center gap-1 rounded-full border border-coral/30 bg-coral/5 px-3 py-2 text-[12.5px] font-bold text-coral active:scale-95"
             >
               <Navigation size={14} /> Prowadź

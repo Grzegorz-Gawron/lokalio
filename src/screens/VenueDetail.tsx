@@ -21,7 +21,7 @@ const SOCIAL_META = [
   { key: 'tiktok', label: 'TikTok', base: 'https://tiktok.com/@' },
 ] as const;
 import { haversineKm, formatDistance } from '../lib/geo';
-import { openDirections } from '../lib/maps';
+import { openVenueDirections } from '../lib/maps';
 import { hashId, photoUrl } from '../lib/photos';
 import { venueOfferInterest } from '../lib/stats';
 import { venueById, offersForVenue, eventsForVenue, organizerById } from '../data/seed';
@@ -48,7 +48,7 @@ export function VenueDetail({ id }: { id: string }) {
 // preview=true: bez przycisków wstecz/udostępnij i meldunku, zamiast „Obserwuj" pokazuje „Edytuj profil",
 // chowa listy promocji/ofert/wydarzeń (zarządzane w osobnych zakładkach panelu).
 export function VenueDetailContent({ venue, preview, onEdit }: { venue: Venue; preview?: boolean; onEdit?: () => void }) {
-  const { user, back, checkIn, liveCount, isFollowing, toggleFollow, isSavedOffer, redeemedOfferIds, openShare, showToast, useMyLocation, locating } = useApp();
+  const { user, back, checkIn, liveCount, isFollowing, toggleFollow, isSavedOffer, redeemedOfferIds, openShare, showToast, useMyLocation, locating, currentCity } = useApp();
   const { eventTile, offerTile } = useTileBuilders();
   const [openStat, setOpenStat] = useState<'ruch' | 'dzisiaj' | 'promo' | 'obserwuje' | null>(null);
   const [geoPromptOpen, setGeoPromptOpen] = useState(false);
@@ -160,7 +160,7 @@ export function VenueDetailContent({ venue, preview, onEdit }: { venue: Venue; p
             <p className="text-[13px] text-ink/70">{[venue.postal, venue.city ?? venue.district, venue.region].filter(Boolean).join(' ')}</p>
           </div>
           <button
-            onClick={() => openDirections(venue.coords)}
+            onClick={() => openVenueDirections(venue, currentCity.name)}
             className="inline-flex shrink-0 items-center gap-1 rounded-full border border-coral/30 bg-coral/5 px-3 py-2 text-[12.5px] font-bold text-coral active:scale-95"
           >
             <Navigation size={14} /> Prowadź
@@ -362,7 +362,7 @@ export function VenueDetailContent({ venue, preview, onEdit }: { venue: Venue; p
           <StaticMap coords={venue.coords} color={venue.color} emoji={venue.emoji} label={venue.name} userCoords={user.coords} />
         </div>
         <button
-          onClick={() => openDirections(venue.coords)}
+          onClick={() => openVenueDirections(venue, currentCity.name)}
           className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-coral/30 bg-coral/5 py-3 text-[14px] font-bold text-coral active:scale-[0.98]"
         >
           <Navigation size={17} /> Nawiguj w Google Maps

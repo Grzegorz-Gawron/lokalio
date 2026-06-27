@@ -5,7 +5,7 @@ import { photoUrl, hashId } from '../lib/photos';
 import { interestOf } from '../lib/stats';
 import { haversineKm, formatDistance, walkMinutes } from '../lib/geo';
 import { fullDateLabel } from '../lib/format';
-import { openDirections } from '../lib/maps';
+import { openEventDirections } from '../lib/maps';
 import { organizerById, venueById, eventById, activeEvents } from '../data/seed';
 import { cityIdOf } from '../data/cities';
 import { StaticMap } from '../components/StaticMap';
@@ -45,7 +45,7 @@ export function EventDetail({ id }: { id: string }) {
  * `preview` ukrywa elementy zależne od kontekstu (akcje, nawigacja, podobne, miejsce).
  */
 export function EventDetailContent({ event, preview = false, onBack }: { event: EventItem; preview?: boolean; onBack?: () => void }) {
-  const { user, navigate, isSavedEvent, toggleSaveEvent, isAttendingEvent, isFollowing, toggleFollow, openShare } = useApp();
+  const { user, navigate, isSavedEvent, toggleSaveEvent, isAttendingEvent, isFollowing, toggleFollow, openShare, currentCity } = useApp();
   const { eventTile, distOf } = useTileBuilders();
   const meta = CATEGORY_META[event.category];
   const org = organizerById(event.organizerId);
@@ -174,7 +174,7 @@ export function EventDetailContent({ event, preview = false, onBack }: { event: 
         </div>
         {!preview && (
           <button
-            onClick={() => openDirections(event.coords)}
+            onClick={() => openEventDirections(event, currentCity.name)}
             className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-coral/30 bg-coral/5 py-3 text-[14px] font-bold text-coral active:scale-[0.98]"
           >
             <Navigation size={17} /> Nawiguj w Google Maps
@@ -190,7 +190,7 @@ export function EventDetailContent({ event, preview = false, onBack }: { event: 
               <div className="min-w-0 flex-1">
                 <p className="text-[14px] font-semibold leading-snug text-ink">{event.place}</p>
               </div>
-              <button onClick={() => openDirections(event.coords)} className="inline-flex shrink-0 items-center gap-1 rounded-full border border-coral/30 bg-coral/5 px-3 py-2 text-[12.5px] font-bold text-coral active:scale-95"><Navigation size={14} /> Prowadź</button>
+              <button onClick={() => openEventDirections(event, currentCity.name)} className="inline-flex shrink-0 items-center gap-1 rounded-full border border-coral/30 bg-coral/5 px-3 py-2 text-[12.5px] font-bold text-coral active:scale-95"><Navigation size={14} /> Prowadź</button>
             </div>
           </div>
         )}
