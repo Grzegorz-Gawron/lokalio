@@ -605,7 +605,7 @@ function ProfilSection({ venue, isAdmin, onDeleted, backRef, initialEditing = fa
 }
 
 function ProfilView({ venue, isAdmin, onDeleted, onCancel }: { venue: Venue; isAdmin: boolean; onDeleted: () => void; onCancel: () => void }) {
-  const { showToast, updateOwnerVenue, removeOwnerVenue, ownerBusiness, offers, events } = useApp();
+  const { showToast, updateOwnerVenue, removeOwnerVenue, ownerBusiness, offers, events, currentCity } = useApp();
   const [photo, setPhoto] = useState<string | undefined>(venue.photo);
   const [name, setName] = useState(venue.name);
   const [venueType, setVenueType] = useState(venue.venueType ?? DEFAULT_VENUE_CAT);
@@ -621,6 +621,10 @@ function ProfilView({ venue, isAdmin, onDeleted, onCancel }: { venue: Venue; isA
   const [region, setRegion] = useState(venue.region ?? '');
   const [postal, setPostal] = useState(venue.postal ?? '');
   const [country, setCountry] = useState(venue.country ?? 'Polska');
+  // Lokalizacja lokalu (pinezka na mapie). Świeży lokal startuje w środku miasta — geokodujemy adres.
+  const [coords, setCoords] = useState<LatLng | undefined>(venue.coords);
+  const [coordsTouched, setCoordsTouched] = useState(false); // właściciel ustawił pinezkę ręcznie (geokod/przeciągnięcie)
+  const isCenter = (c?: LatLng) => !!c && Math.abs(c.lat - currentCity.center.lat) < 1e-4 && Math.abs(c.lng - currentCity.center.lng) < 1e-4;
   const [del, setDel] = useState<'no' | 'confirm' | 'code'>('no');
   const [delCode, setDelCode] = useState('');
   // godziny — wiele bloków
@@ -640,8 +644,15 @@ function ProfilView({ venue, isAdmin, onDeleted, onCancel }: { venue: Venue; isA
 
   const [confirm, setConfirm] = useState(false);
   const save = () => setConfirm(true);
-  const doSave = () => {
+  const doSave = async () => {
     setConfirm(false);
+    // Współrzędne pinezki: ręcznie ustawiona wygrywa; w innym razie, jeśli lokal wciąż jest
+    // w domyślnym środku miasta, geokodujemy adres, żeby znacznik/miniatura trafiły w lokal.
+    let resolved = coords;
+    if (!coordsTouched && isCenter(coords)) {
+      const geo = await geocodeAddr({ placeName, line1, line2, city, region, postal, country });
+      if (geo) resolved = geo;
+    }
     const socials = Object.fromEntries(Object.entries(social).filter(([, v]) => v && v.trim())) as Venue['socials'];
     updateOwnerVenue({
       ...venue,
@@ -652,8 +663,9 @@ function ProfilView({ venue, isAdmin, onDeleted, onCancel }: { venue: Venue; isA
       hours: hours.length ? hours : undefined,
       socials: socials && Object.keys(socials).length ? socials : undefined,
       photo,
+      coords: resolved ?? venue.coords,
     });
-    showToast('Zapisano zmiany profilu', '✅');
+    showToast(resolved && !isCenter(resolved) ? 'Zapisano profil i lokalizację 📍' : 'Zapisano zmiany profilu', '✅');
   };
 
   // Lokal „z danymi" — usuwanie wymaga kodu z e-maila; pusty (świeżo dodany) — tylko potwierdzenie.
@@ -694,6 +706,14 @@ function ProfilView({ venue, isAdmin, onDeleted, onCancel }: { venue: Venue; isA
           if (p.postal !== undefined) setPostal(p.postal);
           if (p.country !== undefined) setCountry(p.country);
         }}
+      />
+
+      {/* Pinezka lokalu na mapie — geokodowanie adresu + przeciąganie (jak w wydarzeniach).
+          Świeży lokal (wciąż w środku miasta) nie pokazuje mapy, dopóki nie ustali pinezki. */}
+      <LocationMap
+        addr={{ placeName, line1, line2, city, region, postal, country }}
+        coords={coordsTouched || !isCenter(coords) ? coords : undefined}
+        onChange={(c) => { setCoords(c); setCoordsTouched(true); }}
       />
 
       {/* Godziny otwarcia — wiele bloków */}
