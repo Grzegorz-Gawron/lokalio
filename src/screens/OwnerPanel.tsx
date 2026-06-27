@@ -66,12 +66,15 @@ function BusinessGate() {
 }
 
 // ============================================================
-// Rejestracja — wybór typu konta → (organizator: kategoria + lokalizacja) → dane → kod
+// Rejestracja — wybór typu konta → (organizator: kategoria) → panel
+// Konto Lokalio jest już potwierdzone na bramce logowania, więc nazwę/e-mail
+// i jednorazowy kod pomijamy. Kroki 'details' i 'code' zostają w pliku (poza
+// `flow`) na wypadek powrotu do dawnej koncepcji — wystarczy dodać je do `flow`.
 // ============================================================
 type Step = 'type' | 'category' | 'details' | 'code';
 
 function BusinessRegister() {
-  const { back, loginOwner } = useApp();
+  const { back, loginOwner, account } = useApp();
   const [step, setStep] = useState<Step>('type');
   const [accountType, setAccountType] = useState<AccountType | null>(null);
   const [orgCat, setOrgCat] = useState<OrganizerCategoryKey | null>(null);
@@ -80,7 +83,7 @@ function BusinessRegister() {
   const [code, setCode] = useState('');
 
   const isOrg = accountType === 'organizer';
-  const flow: Step[] = isOrg ? ['type', 'category', 'details', 'code'] : ['type', 'details', 'code'];
+  const flow: Step[] = isOrg ? ['type', 'category'] : ['type'];
   const idx = flow.indexOf(step);
 
   const goBack = () => {
@@ -88,9 +91,18 @@ function BusinessRegister() {
     setStep(flow[idx - 1]);
   };
 
+  // Tworzy konto firmowe i wchodzi do panelu (tryb setup → panel sam otworzy
+  // formularz lokalu/organizacji do uzupełnienia nazwy i reszty danych).
+  const createOwner = (t: AccountType, cat?: OrganizerCategoryKey) =>
+    loginOwner(
+      { name: '', email: account?.email ?? '', accountType: t, organizerCategory: t === 'organizer' ? cat : undefined },
+      { setup: true },
+    );
+
   const pick = (t: AccountType) => {
     setAccountType(t);
-    setStep(t === 'lokal' ? 'details' : 'category');
+    if (t === 'lokal') createOwner('lokal'); // bez dodatkowych ekranów
+    else setStep('category');
   };
 
   return (
@@ -101,11 +113,13 @@ function BusinessRegister() {
           <button onClick={goBack} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/5 active:scale-90"><ChevronLeft size={22} /></button>
           <h1 className="flex items-center gap-2 text-[19px] font-extrabold tracking-tight text-ink"><Store size={19} className="text-coral" /> Panel firmowy</h1>
         </div>
-        <div className="mt-3 flex gap-1.5">
-          {flow.map((s, i) => (
-            <span key={s} className={cx('h-1.5 flex-1 rounded-full transition', i <= idx ? 'bg-coral' : 'bg-black/10')} />
-          ))}
-        </div>
+        {flow.length > 1 && (
+          <div className="mt-3 flex gap-1.5">
+            {flow.map((s, i) => (
+              <span key={s} className={cx('h-1.5 flex-1 rounded-full transition', i <= idx ? 'bg-coral' : 'bg-black/10')} />
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="px-4">
@@ -141,7 +155,7 @@ function BusinessRegister() {
               {ORGANIZER_CATEGORIES.map((c) => (
                 <button
                   key={c.key}
-                  onClick={() => { setOrgCat(c.key); setStep('details'); }}
+                  onClick={() => { setOrgCat(c.key); createOwner('organizer', c.key); }}
                   className={cx(
                     'flex items-center gap-2.5 rounded-card bg-paper p-3 text-left shadow-card transition active:scale-[0.97]',
                     orgCat === c.key && 'ring-2 ring-coral',

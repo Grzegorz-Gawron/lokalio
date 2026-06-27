@@ -215,7 +215,7 @@ export function LokalPanel() {
   useEffect(() => {
     if (!ownerSetup || setupDone.current) return;
     setupDone.current = true;
-    const v = makeOwnerVenue(ownerBusiness?.name ?? 'Mój lokal', DEFAULT_VENUE_CAT, currentCity.center, currentCity.districts[0]?.district ?? '');
+    const v = makeOwnerVenue(ownerBusiness?.name || 'Mój lokal', DEFAULT_VENUE_CAT, currentCity.center, currentCity.districts[0]?.district ?? '');
     addOwnerVenue(v);
     setVenueId(v.id);
     setView('profile');
