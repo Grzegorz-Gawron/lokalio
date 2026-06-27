@@ -7,6 +7,7 @@ import { interestOf } from '../lib/stats';
 import { formatTime, dateChipLabel } from '../lib/format';
 import { haversineKm, formatDistance } from '../lib/geo';
 import { venueById, offersForVenue, eventsForVenue, organizerById } from '../data/seed';
+import { venueAddress, eventAddress, addressQuery } from '../lib/maps';
 import type { EventItem, Offer, Venue, Organizer, CategoryKey, LatLng } from '../types';
 
 /**
@@ -26,6 +27,7 @@ export interface TileData {
   title: string;
   subtitle: string;
   coords: LatLng;
+  address?: string; // czytelny adres do nawigacji „Prowadź/Nawiguj" (lepsze trafienie niż współrzędne)
   iso?: string;
   time?: string;
   free?: boolean;
@@ -206,7 +208,7 @@ export function useTileBuilders() {
       id: 'e-' + e.id, type: 'event', cat: e.category, emoji: e.emoji, grad: e.gradient,
       tag: 'Wydarzenie', tagColor: '#7A5C99',
       photo: e.photo || photoUrl(e.category, e.id, 200, 200),
-      title: e.title, subtitle: e.place, coords: e.coords,
+      title: e.title, subtitle: e.place, coords: e.coords, address: eventAddress(e, currentCity.name),
       iso: e.dateIso, time: formatTime(e.dateIso), free: e.free, price: e.priceLabel,
       interest: interestOf(e.id) + (saved ? 1 : 0), // +1 gdy sam zapiszesz — jak na ekranie szczegółów
       onClick: () => navigate({ name: 'event', id: e.id }),
@@ -222,6 +224,7 @@ export function useTileBuilders() {
       tag: o.kind === 'bon' ? 'Oferta Lokalio' : 'Promocja', tagColor: '#FF5A4D',
       photo: o.photo || photoUrl(v?.category ?? 'gastro', o.id, 200, 200),
       title: o.title, subtitle: o.subtitle, coords: v?.coords ?? currentCity.center,
+      address: v ? venueAddress(v, currentCity.name) : undefined,
       discount: o.discountLabel, valid: o.validLabel, interest: interestOf(o.id) + (saved ? 1 : 0), // +1 gdy sam zapiszesz
       redeemed: redeemedOfferIds.includes(o.id),
       onClick: () => navigate({ name: 'offer', id: o.id }),
@@ -242,7 +245,7 @@ export function useTileBuilders() {
       id: 'v-' + v.id, type: 'venue', cat: v.category, emoji: v.emoji, grad: [v.color, v.color],
       tag: CATEGORY_META[v.category].label, tagColor: CATEGORY_META[v.category].color,
       photo: photoUrl(v.category, v.id, 200, 200),
-      title: v.name, subtitle: opts?.subtitle ?? v.district, coords: v.coords,
+      title: v.name, subtitle: opts?.subtitle ?? v.district, coords: v.coords, address: venueAddress(v, currentCity.name),
       live: liveCount(v), followers: org ? organizerById(org)?.followers : undefined, offerInfo, eventInfo,
       following: org ? isFollowing(org) : false,
       follow: org ? () => toggleFollow(org) : undefined,
@@ -259,7 +262,7 @@ export function useTileBuilders() {
       tag: o.kind === 'instytucja' ? 'Instytucja' : 'Lokal', tagColor: '#FF5A4D',
       photo: photoUrl(cat, o.id, 200, 200),
       title: o.name, subtitle: o.kind === 'instytucja' ? 'Instytucja' : 'Lokal',
-      coords: currentCity.center,
+      coords: currentCity.center, address: o.address ? addressQuery([o.address, currentCity.name]) : undefined,
       metaText: `${o.followers} obserwujących`,
       onClick: () => navigate({ name: 'organizer', id: o.id }),
     };

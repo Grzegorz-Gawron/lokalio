@@ -14,6 +14,7 @@ const TOKEN = (((import.meta as unknown as { env?: Record<string, string> }).env
  */
 export function StaticMap({
   coords,
+  address,
   color = 'FF5A4D',
   emoji,
   label,
@@ -21,6 +22,7 @@ export function StaticMap({
   userCoords,
 }: {
   coords: LatLng;
+  address?: string; // czytelny adres docelowy dla „Nawiguj" (lepsze trafienie niż surowe współrzędne)
   color?: string;
   emoji?: string;
   label?: string;
@@ -61,7 +63,7 @@ export function StaticMap({
                 <X size={20} />
               </button>
               <button
-                onClick={() => openDirections(coords)}
+                onClick={() => openDirections(address ? { coords, address } : coords)}
                 className="absolute bottom-8 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full bg-coral px-5 py-3 text-[14px] font-bold text-white shadow-coral active:scale-95"
               >
                 <Navigation size={17} /> Nawiguj

@@ -33,12 +33,22 @@ export function openDirections(target: LatLng | DirectionsTarget) {
 type VenueLike = { coords: LatLng; address?: string; addrLine2?: string; city?: string; region?: string };
 type EventLike = { coords: LatLng; place?: string; addrLine1?: string; addrLine2?: string; city?: string; region?: string };
 
-/** Nawigacja do lokalu — adres lokalu + miasto (fallback: currentCity), z fallbackiem do współrzędnych. */
-export function openVenueDirections(v: VenueLike, fallbackCity?: string) {
-  openDirections({ coords: v.coords, address: addressQuery([v.address, v.addrLine2, v.city ?? fallbackCity, v.region]) });
+/** Adres lokalu do geokodowania: adres + miasto (fallback: currentCity). */
+export function venueAddress(v: VenueLike, fallbackCity?: string): string {
+  return addressQuery([v.address, v.addrLine2, v.city ?? fallbackCity, v.region]);
 }
 
-/** Nawigacja do wydarzenia — ulica lub nazwa miejsca + miasto (fallback: currentCity). */
+/** Adres wydarzenia: ulica lub nazwa miejsca + miasto (fallback: currentCity). */
+export function eventAddress(e: EventLike, fallbackCity?: string): string {
+  return addressQuery([e.addrLine1 || e.place, e.addrLine2, e.city ?? fallbackCity, e.region]);
+}
+
+/** Nawigacja do lokalu — adres lokalu + miasto, z fallbackiem do współrzędnych. */
+export function openVenueDirections(v: VenueLike, fallbackCity?: string) {
+  openDirections({ coords: v.coords, address: venueAddress(v, fallbackCity) });
+}
+
+/** Nawigacja do wydarzenia — ulica lub nazwa miejsca + miasto. */
 export function openEventDirections(e: EventLike, fallbackCity?: string) {
-  openDirections({ coords: e.coords, address: addressQuery([e.addrLine1 || e.place, e.addrLine2, e.city ?? fallbackCity, e.region]) });
+  openDirections({ coords: e.coords, address: eventAddress(e, fallbackCity) });
 }

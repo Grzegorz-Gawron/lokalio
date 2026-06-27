@@ -92,7 +92,7 @@ function HCard({ tile, dist, active, onSelect }: { tile: TileData; dist: string;
         </div>
       </button>
       <button
-        onClick={(e) => { e.stopPropagation(); openDirections(tile.coords); }}
+        onClick={(e) => { e.stopPropagation(); openDirections(tile.address ? { coords: tile.coords, address: tile.address } : tile.coords); }}
         aria-label="Nawiguj w Google Maps"
         className="flex h-11 w-11 shrink-0 self-center items-center justify-center rounded-full bg-coral text-white shadow-coral active:scale-90"
       >

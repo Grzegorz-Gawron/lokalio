@@ -21,7 +21,7 @@ const SOCIAL_META = [
   { key: 'tiktok', label: 'TikTok', base: 'https://tiktok.com/@' },
 ] as const;
 import { haversineKm, formatDistance } from '../lib/geo';
-import { openVenueDirections } from '../lib/maps';
+import { openVenueDirections, venueAddress } from '../lib/maps';
 import { hashId, photoUrl } from '../lib/photos';
 import { venueOfferInterest } from '../lib/stats';
 import { venueById, offersForVenue, eventsForVenue, organizerById } from '../data/seed';
@@ -359,7 +359,7 @@ export function VenueDetailContent({ venue, preview, onEdit }: { venue: Venue; p
 
         {/* Statyczna mapka lokalu */}
         <div className="mt-6 h-44 overflow-hidden rounded-card shadow-card">
-          <StaticMap coords={venue.coords} color={venue.color} emoji={venue.emoji} label={venue.name} userCoords={user.coords} />
+          <StaticMap coords={venue.coords} address={venueAddress(venue, currentCity.name)} color={venue.color} emoji={venue.emoji} label={venue.name} userCoords={user.coords} />
         </div>
         <button
           onClick={() => openVenueDirections(venue, currentCity.name)}

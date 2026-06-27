@@ -2,7 +2,7 @@ import { ChevronLeft, ChevronRight, Share2, Heart, MapPin, Users, Clock, Ticket,
 import { useApp } from '../store/AppContext';
 import { offerById, venueById, organizerById, offersForVenue, eventsForVenue } from '../data/seed';
 import { haversineKm, formatDistance } from '../lib/geo';
-import { openVenueDirections } from '../lib/maps';
+import { openVenueDirections, venueAddress } from '../lib/maps';
 import { hashId, photoUrl } from '../lib/photos';
 import { interestOf } from '../lib/stats';
 import { StaticMap } from '../components/StaticMap';
@@ -233,7 +233,7 @@ export function OfferDetailContent({ offer, venue, preview = false, km, saved = 
               {!preview && <button onClick={() => openVenueDirections(venue, cityName)} className="inline-flex shrink-0 items-center gap-1 rounded-full border border-coral/30 bg-coral/5 px-3 py-2 text-[12.5px] font-bold text-coral active:scale-95"><Navigation size={14} /> Prowadź</button>}
             </div>
             <div className="mt-2 h-28 overflow-hidden rounded-card shadow-card">
-              <StaticMap coords={venue.coords} color={venue.color} emoji={venue.emoji} label={venue.name} userCoords={userCoords} />
+              <StaticMap coords={venue.coords} address={venueAddress(venue, cityName)} color={venue.color} emoji={venue.emoji} label={venue.name} userCoords={userCoords} />
             </div>
           </Section>
         )}

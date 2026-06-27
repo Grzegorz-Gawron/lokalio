@@ -5,7 +5,7 @@ import { photoUrl, hashId } from '../lib/photos';
 import { interestOf } from '../lib/stats';
 import { haversineKm, formatDistance, walkMinutes } from '../lib/geo';
 import { fullDateLabel } from '../lib/format';
-import { openEventDirections } from '../lib/maps';
+import { openEventDirections, eventAddress } from '../lib/maps';
 import { organizerById, venueById, eventById, activeEvents } from '../data/seed';
 import { cityIdOf } from '../data/cities';
 import { StaticMap } from '../components/StaticMap';
@@ -170,7 +170,7 @@ export function EventDetailContent({ event, preview = false, onBack }: { event: 
 
         {/* Mapka miejsca */}
         <div className="mt-5 h-44 overflow-hidden rounded-card shadow-card">
-          <StaticMap coords={event.coords} color={meta.color} emoji={event.emoji} label={event.place} userCoords={user?.coords} />
+          <StaticMap coords={event.coords} address={eventAddress(event, currentCity.name)} color={meta.color} emoji={event.emoji} label={event.place} userCoords={user?.coords} />
         </div>
         {!preview && (
           <button
