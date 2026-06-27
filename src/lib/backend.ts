@@ -99,6 +99,29 @@ export async function emailHasAccount(email: string): Promise<boolean> {
   }
 }
 
+// ---- feedback testerów (pilotaż) ----
+export type FeedbackType = 'bug' | 'idea' | 'other';
+export interface FeedbackInput {
+  type: FeedbackType;
+  message: string;
+  rating?: number | null;
+  userRef?: string | null;
+  appContext?: Record<string, unknown>;
+}
+
+/** Zapis zgłoszenia do lk_feedback (INSERT dozwolony anon + zalogowani). */
+export async function dbInsertFeedback(f: FeedbackInput): Promise<{ error: string | null }> {
+  if (!supabase) return { error: 'Supabase nie jest skonfigurowany.' };
+  const { error } = await supabase.from('lk_feedback').insert({
+    type: f.type,
+    message: f.message.trim(),
+    rating: f.rating ?? null,
+    user_ref: f.userRef ?? null,
+    app_context: f.appContext ?? null,
+  });
+  return { error: error?.message ?? null };
+}
+
 export async function loadProfile(id: string): Promise<ProfileRow | null> {
   if (!supabase) return null;
   try {

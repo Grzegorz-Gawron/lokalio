@@ -44,3 +44,9 @@ export function resetAnalytics(): void {
   if (!enabled) return;
   posthog.reset();
 }
+
+/** Stabilny anonimowy identyfikator (distinct_id PostHog z localStorage). null gdy brak klucza. */
+export function getAnonId(): string | null {
+  if (!enabled) return null;
+  try { return posthog.get_distinct_id() ?? null; } catch { return null; }
+}

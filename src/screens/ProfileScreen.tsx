@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Heart, Ticket, MapPin, Eye, ChevronRight, LogOut, Store, Check, Moon, Pencil, UserPlus, Bell, Target, Lock } from 'lucide-react';
+import { Heart, Ticket, MapPin, Eye, ChevronRight, LogOut, Store, Check, Moon, Pencil, UserPlus, Bell, Target, Lock, MessageSquarePlus } from 'lucide-react';
 import { useApp } from '../store/AppContext';
 import { setAccountPassword } from '../lib/backend';
 import { BADGES, organizerById, venueById, offerById, eventById, offersForVenue, activeVenues } from '../data/seed';
@@ -10,6 +10,7 @@ import { hashId } from '../lib/photos';
 import { cx, ProgressRing, PasswordFields, pwdReady } from '../components/ui';
 import { AuthCard, authErrorMsg } from '../components/AuthCard';
 import { LocationSheet } from '../components/LocationSheet';
+import { FeedbackSheet } from '../components/FeedbackSheet';
 import type { Badge, Organizer } from '../types';
 
 // Szacunkowa oszczędność z wykorzystanego bonu (deterministyczna, demo).
@@ -29,6 +30,7 @@ function timeAgo(at: number): string {
 export function ProfileScreen() {
   const { user, stats, currentCity, checkinHistory, redeemedOfferIds, activeVouchers, navigate, resetApp, isFollowing, toggleFollow, authEnabled, account, logout, showToast, theme, toggleTheme, unseenNotifs, radiusKm, setRadiusKm } = useApp();
   const [locOpen, setLocOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [pwdOpen, setPwdOpen] = useState(false); // sekcja „ustaw hasło do konta" (zalogowany)
   const [newPwd, setNewPwd] = useState('');
@@ -230,6 +232,7 @@ export function ProfileScreen() {
         </div>
         <Row icon={Bell} label="Powiadomienia" sub={unseenNotifs > 0 ? `${unseenNotifs} nowych od obserwowanych` : 'Co chcesz dostawać'} badge={unseenNotifs} onClick={() => navigate({ name: 'notifications' })} />
         <Row icon={UserPlus} label="Zaproś znajomych" sub="Wyślij im link do aplikacji" onClick={inviteFriends} />
+        <Row icon={MessageSquarePlus} label="Zgłoś uwagę / pomysł" sub="Pomóż nam ulepszać Lokalio" onClick={() => setFeedbackOpen(true)} />
         <Row icon={Store} label="Panel firmowy" sub="Zarządzaj lokalem lub wydarzeniami" onClick={() => navigate({ name: 'owner' })} />
         <button onClick={toggleTheme} className="flex w-full items-center gap-3 rounded-card bg-paper p-3.5 text-left shadow-card active:scale-[0.99]">
           <span className="flex h-10 w-10 items-center justify-center rounded-full bg-coral/12 text-coral"><Moon size={18} /></span>
@@ -317,6 +320,7 @@ export function ProfileScreen() {
       </div>
 
       <LocationSheet open={locOpen} onClose={() => setLocOpen(false)} />
+      <FeedbackSheet open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </div>
   );
 }

@@ -53,6 +53,20 @@ Model danych (`supabase/schema.sql`, prefiks `lk_`):
 - `lk_saves`, `lk_follows`, `lk_friends`
 - katalog (`lk_organizers/lk_venues/lk_events/lk_offers`) dodamy później, gdy lokale mają zarządzać treścią same.
 
+## 2a. Feedback testerów (`lk_feedback`)
+
+Prosty zbieracz uwag z pilotażu — **bez panelu admina w apce**. Tester: Profil → „Zgłoś uwagę / pomysł"
+→ modal (typ: Błąd/Pomysł/Inne + treść + opcjonalna ocena 1–5) → zapis do `lk_feedback`.
+
+- Kod: `src/components/FeedbackSheet.tsx` (UI) + `dbInsertFeedback()` w `src/lib/backend.ts`.
+- Do każdego zgłoszenia automatycznie dołączamy `app_context` (ekran, miasto, tryb, `userAgent`)
+  i `user_ref` (id zalogowanego konta lub anonimowy `distinct_id` PostHog).
+- **RLS:** INSERT dozwolony dla każdego (anon + zalogowani); **brak** SELECT/UPDATE/DELETE,
+  więc nikt nie czyta zgłoszeń przez API.
+
+**Jak czytać zgłoszenia:** Supabase → **Table Editor → `lk_feedback`**, sortuj po `created_at` (malejąco).
+Service_role (Dashboard) omija RLS, więc widzisz wszystko. Definicja: `supabase/schema.sql`.
+
 ## 3. Miasta
 
 - Rejestr: `src/data/cities.ts` (Sandomierz domyślny + Tarnobrzeg, Stalowa Wola, Opatów, Kraków).

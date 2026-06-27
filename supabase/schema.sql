@@ -98,5 +98,31 @@ create policy "lk_friends own"  on lk_friends  for all using (profile_id = auth.
 
 grant select on lk_venue_live_counts to anon, authenticated;
 
+-- ---------- Feedback testerów (pilotaż) ----------
+-- Każdy (anon i zalogowany) może WYSŁAĆ zgłoszenie. Nikt nie czyta cudzych zgłoszeń
+-- przez API (brak polityk SELECT/UPDATE/DELETE) — właściciel czyta w Dashboardzie
+-- Supabase (Table Editor → lk_feedback, sortuj po created_at). Patrz BACKEND.md.
+create table if not exists lk_feedback (
+  id          uuid primary key default gen_random_uuid(),
+  created_at  timestamptz default now(),
+  type        text not null default 'idea' check (type in ('bug','idea','other')),
+  message     text not null check (char_length(message) between 1 and 4000),
+  rating      int check (rating between 1 and 5),   -- opcjonalna ocena
+  user_ref    text,                                 -- anon distinct_id lub user-id Supabase
+  app_context jsonb                                 -- {screen, city, version, ua}
+);
+
+alter table lk_feedback enable row level security;
+
+-- INSERT dla każdego (anon + zalogowani), ale tylko poprawne zgłoszenia (nie „always true").
+create policy "lk_feedback insert valid" on lk_feedback
+  for insert to anon, authenticated
+  with check (
+    char_length(message) between 1 and 4000
+    and type in ('bug','idea','other')
+    and (rating is null or rating between 1 and 5)
+  );
+-- (świadomie brak SELECT/UPDATE/DELETE — czytane tylko w Dashboardzie Supabase)
+
 -- Gotowe. Katalog dodamy do bazy później (tabele lk_organizers/lk_venues/lk_events/lk_offers),
 -- gdy organizatorzy/lokale mają zarządzać treścią samodzielnie.
