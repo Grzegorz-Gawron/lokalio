@@ -123,6 +123,7 @@ interface Ctx {
   checkinHistory: CheckinEntry[];
   locating: boolean;
   ownerLoggedIn: boolean;
+  ownerRestoring: boolean; // trwa sprawdzanie w chmurze, czy konto ma już panel firmowy
   ownerBusiness: OwnerBusiness | null;
   ownerVenues: Venue[];
   ownerVenueIds: string[];
@@ -292,6 +293,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [ownerLoggedIn, setOwnerLoggedIn] = useState<boolean>(initial.current.ownerLoggedIn ?? false);
   const [ownerBusiness, setOwnerBusiness] = useState<OwnerBusiness | null>(initial.current.ownerBusiness ?? null);
   const [ownerSetup, setOwnerSetup] = useState(false); // transient — nie persystowane
+  const [ownerSyncedUid, setOwnerSyncedUid] = useState<string | null>(null); // konto, dla którego skończono sprawdzanie panelu firmowego w chmurze
   const [armAgentVoice, setArmAgentVoice] = useState(false); // transient
   const [mapFocus, setMapFocus] = useState<MapFocus | null>(null); // transient
   const [toast, setToast] = useState<Toast | null>(null);
@@ -856,32 +858,45 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const updateOwnerOffer = useCallback((o: Offer) => { setOwnerOffers((list) => list.map((x) => (x.id === o.id ? o : x))); const uid = accountRef.current?.userId; if (uid) dbUpsertOwner(uid, 'offer', o.id, o); }, []);
   const removeOwnerOffer = useCallback((id: string) => { setOwnerOffers((list) => list.filter((x) => x.id !== id)); const uid = accountRef.current?.userId; if (uid) dbDeleteOwner(uid, 'offer', id); }, []);
 
-  // ---- synchronizacja treści właściciela z chmurą (gdy zalogowany do konta) ----
-  // Logika: chmura ma dane → przyjmij je (źródło prawdy między urządzeniami); chmura pusta → wypchnij obecne lokalne.
+  // ---- synchronizacja treści właściciela z chmurą (po zalogowaniu do konta) ----
+  // Odpala się przy każdym logowaniu (nie tylko gdy już w panelu), żeby wracający
+  // właściciel trafił prosto do swojego panelu firmowego, a nie na ekran rejestracji.
+  // Logika: chmura ma firmę → przyjmij ją i wejdź do panelu (źródło prawdy między
+  // urządzeniami); chmura pusta, ale mamy lokalne treści → wypchnij je do chmury.
   const ownerSyncedRef = useRef<string | null>(null);
   useEffect(() => {
     const uid = account?.userId;
-    if (!uid || !ownerLoggedIn) { ownerSyncedRef.current = null; return; }
+    if (!uid) { ownerSyncedRef.current = null; setOwnerSyncedUid(null); return; }
     if (ownerSyncedRef.current === uid) return; // raz na konto/sesję
     ownerSyncedRef.current = uid;
     (async () => {
-      const remote = await dbLoadOwnerContent(uid);
-      if (!remote) return;
-      const hasRemote = remote.venues.length || remote.events.length || remote.offers.length || remote.business;
-      if (hasRemote) {
-        if (remote.venues.length) { const vs = remote.venues as Venue[]; setOwnerVenues(vs); setOwnerVenueIds(vs.map((v) => v.id)); }
-        if (remote.events.length) setOwnerEvents(remote.events as EventItem[]);
-        if (remote.offers.length) setOwnerOffers(remote.offers as Offer[]);
-        if (remote.business) setOwnerBusiness(remote.business as OwnerBusiness);
-      } else {
-        ownerVenuesRef.current.forEach((v) => dbUpsertOwner(uid, 'venue', v.id, v));
-        ownerEventsRef.current.forEach((e) => dbUpsertOwner(uid, 'event', e.id, e));
-        ownerOffersRef.current.forEach((o) => dbUpsertOwner(uid, 'offer', o.id, o));
-        if (ownerBusinessRef.current) dbUpsertOwner(uid, 'business', 'self', ownerBusinessRef.current);
+      try {
+        const remote = await dbLoadOwnerContent(uid);
+        if (!remote) return;
+        const hasRemote = remote.venues.length || remote.events.length || remote.offers.length || remote.business;
+        if (hasRemote) {
+          if (remote.venues.length) { const vs = remote.venues as Venue[]; setOwnerVenues(vs); setOwnerVenueIds(vs.map((v) => v.id)); }
+          if (remote.events.length) setOwnerEvents(remote.events as EventItem[]);
+          if (remote.offers.length) setOwnerOffers(remote.offers as Offer[]);
+          // Firma w chmurze → istniejące konto firmowe: wejdź prosto do panelu.
+          if (remote.business) { setOwnerBusiness(remote.business as OwnerBusiness); setOwnerLoggedIn(true); }
+        } else if (ownerBusinessRef.current || ownerVenuesRef.current.length) {
+          // chmura pusta, ale mamy lokalne treści właściciela → wypchnij je
+          ownerVenuesRef.current.forEach((v) => dbUpsertOwner(uid, 'venue', v.id, v));
+          ownerEventsRef.current.forEach((e) => dbUpsertOwner(uid, 'event', e.id, e));
+          ownerOffersRef.current.forEach((o) => dbUpsertOwner(uid, 'offer', o.id, o));
+          if (ownerBusinessRef.current) dbUpsertOwner(uid, 'business', 'self', ownerBusinessRef.current);
+        }
+      } finally {
+        setOwnerSyncedUid(uid); // sprawdzanie zakończone → panel przestaje pokazywać loader
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [account, ownerLoggedIn]);
+  }, [account]);
+
+  // Zalogowany, ale chmura jeszcze nie sprawdzona → panel firmowy pokazuje loader,
+  // żeby wracający właściciel nie zobaczył mignięcia ekranu zakładania nowego konta.
+  const ownerRestoring = !!account && ownerSyncedUid !== account.userId;
 
   // ---- share ----
   const openShare = useCallback((title: string) => { track('share_opened', { title }); setShareTitle(title); }, []);
@@ -919,6 +934,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     checkinHistory,
     locating,
     ownerLoggedIn,
+    ownerRestoring,
     ownerBusiness,
     ownerVenues,
     ownerVenueIds,

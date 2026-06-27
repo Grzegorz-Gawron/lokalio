@@ -13,13 +13,25 @@ import { OrganizerPanel } from './OwnerOrganizerPanel';
 const inputCls = 'mt-1.5 w-full rounded-xl border border-black/10 bg-paper px-3.5 py-2.5 text-[14px] outline-none focus:border-coral';
 
 export function OwnerPanel() {
-  const { ownerLoggedIn, ownerBusiness, account, authEnabled } = useApp();
+  const { ownerLoggedIn, ownerRestoring, ownerBusiness, account, authEnabled } = useApp();
   // Najpierw logowanie do konta Lokalio — dopiero potem zakładanie / panel firmowy.
   // (demo „Podgląd bez logowania" ustawia ownerLoggedIn i omija bramkę).
   if (authEnabled && !account && !ownerLoggedIn) return <BusinessGate />;
+  // Po zalogowaniu sprawdzamy w chmurze, czy konto ma już panel firmowy — wracający
+  // właściciel trafia prosto do panelu, a nie na ekran zakładania nowego konta.
+  if (ownerRestoring && !ownerLoggedIn) return <OwnerLoading />;
   if (!ownerLoggedIn) return <BusinessRegister />;
   if (ownerBusiness?.accountType === 'organizer') return <OrganizerPanel />;
   return <LokalPanel />;
+}
+
+function OwnerLoading() {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-3 bg-cream">
+      <span className="h-9 w-9 animate-spin rounded-full border-[3px] border-coral/25 border-t-coral" />
+      <p className="text-[13.5px] font-semibold text-subtle">Wczytuję Twój panel firmowy…</p>
+    </div>
+  );
 }
 
 // ============================================================
