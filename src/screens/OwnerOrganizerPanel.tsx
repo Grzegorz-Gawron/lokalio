@@ -432,10 +432,12 @@ function OrgEvents({ orgId, catEmoji, onOpenDetail, backRef, initialDraft, onDra
   };
 
   const [confirm, setConfirm] = useState(false);
-  const publish = () => setConfirm(true);
+  // Anty-spam: nie publikujemy pustych wydarzeń — wymagany tytuł i data.
+  const canPublish = f.title.trim().length >= 2 && !!f.startDate;
+  const publish = () => { if (canPublish) setConfirm(true); };
   const doPublish = async () => {
     setConfirm(false);
-    if (saving) return;
+    if (saving || !canPublish) return;
     setSaving(true);
     // Pinezka zatwierdzona/przeciągnięta na mapie ma pierwszeństwo; inaczej geokoduj adres.
     let coords = f.coords;
@@ -535,15 +537,16 @@ function OrgEvents({ orgId, catEmoji, onOpenDetail, backRef, initialDraft, onDra
           {preview ? (
             <div className="flex gap-2">
               <button onClick={() => setPreview(false)} className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl bg-black/5 py-3 text-[14px] font-bold text-ink/60 active:scale-[0.98]"><Pencil size={15} /> Wróć do edycji</button>
-              <button onClick={publish} className="flex flex-[2] items-center justify-center gap-2 rounded-2xl bg-coral py-3 text-[14px] font-bold text-white shadow-coral active:scale-[0.98]"><Sparkles size={16} /> {editingId ? 'Zapisz' : 'Opublikuj'}</button>
+              <button onClick={publish} disabled={!canPublish} className={cx('flex flex-[2] items-center justify-center gap-2 rounded-2xl py-3 text-[14px] font-bold transition active:scale-[0.98]', canPublish ? 'bg-coral text-white shadow-coral' : 'bg-black/10 text-ink/40')}><Sparkles size={16} /> {editingId ? 'Zapisz' : 'Opublikuj'}</button>
             </div>
           ) : (
             <div className="space-y-2">
               <button onClick={() => setPreview(true)} className="flex w-full items-center justify-center gap-2 rounded-2xl border border-coral/30 bg-coral/5 py-2.5 text-[13.5px] font-bold text-coral active:scale-[0.98]"><Eye size={16} /> Podgląd przed publikacją</button>
               <div className="flex gap-2">
                 <button onClick={close} className="flex-1 rounded-2xl bg-black/5 py-3 text-[14px] font-bold text-ink/60 active:scale-[0.98]">Anuluj</button>
-                <button onClick={publish} className="flex-[2] flex items-center justify-center gap-2 rounded-2xl bg-coral py-3 text-[14px] font-bold text-white shadow-coral active:scale-[0.98]"><Sparkles size={16} /> {editingId ? 'Zapisz' : 'Opublikuj'}</button>
+                <button onClick={publish} disabled={!canPublish} className={cx('flex-[2] flex items-center justify-center gap-2 rounded-2xl py-3 text-[14px] font-bold transition active:scale-[0.98]', canPublish ? 'bg-coral text-white shadow-coral' : 'bg-black/10 text-ink/40')}><Sparkles size={16} /> {editingId ? 'Zapisz' : 'Opublikuj'}</button>
               </div>
+              {!canPublish && <p className="text-center text-[11.5px] text-ink/45">Uzupełnij tytuł, żeby opublikować.</p>}
             </div>
           )}
         </div>

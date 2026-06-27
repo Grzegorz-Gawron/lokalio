@@ -453,8 +453,13 @@ function Hub({ venue, venues, venueId, setVenueId, onOpen, onAddVenue, onLogout,
               <CategorySelect value={newType} onChange={setNewType} groups={VENUE_GROUPS} />
               <div className="flex gap-2">
                 <button onClick={() => { setAdding(false); setNewName(''); }} className="flex-1 rounded-xl bg-black/5 py-2 text-[13px] font-bold text-ink/60">Anuluj</button>
-                <button onClick={() => { onAddVenue(newName, newType); setAdding(false); setNewName(''); }} className="flex-[2] rounded-xl bg-coral py-2 text-[13px] font-bold text-white shadow-coral">Dodaj</button>
+                <button
+                  onClick={() => { if (newName.trim().length < 2) return; onAddVenue(newName.trim(), newType); setAdding(false); setNewName(''); }}
+                  disabled={newName.trim().length < 2}
+                  className={cx('flex-[2] rounded-xl py-2 text-[13px] font-bold transition', newName.trim().length >= 2 ? 'bg-coral text-white shadow-coral active:scale-95' : 'bg-black/10 text-ink/40')}
+                >Dodaj</button>
               </div>
+              {newName.trim().length < 2 && <p className="text-[11px] text-ink/40">Podaj nazwę lokalu, żeby go dodać.</p>}
             </div>
           ))}
         </div>
@@ -929,9 +934,12 @@ function OffersView({ venue, kind, onOpenDetail, backRef, initialDraft, onDraftC
   };
 
   const [confirm, setConfirm] = useState(false);
-  const publish = () => setConfirm(true);
+  // Anty-spam: nie publikujemy pustych ofert — wymagany tytuł i sensowna wartość rabatu.
+  const canPublish = f.title.trim().length >= 2 && Number(f.value) > 0;
+  const publish = () => { if (canPublish) setConfirm(true); };
   const doPublish = () => {
     setConfirm(false);
+    if (!canPublish) return;
     const off = buildOffer();
     if (editingId) updateOwnerOffer(off); else addOwnerOffer(off);
     showToast(editingId ? 'Zapisano zmiany' : isBon ? 'Oferta opublikowana' : 'Promocja opublikowana', '🎉');
@@ -1081,15 +1089,16 @@ function OffersView({ venue, kind, onOpenDetail, backRef, initialDraft, onDraftC
           {preview ? (
             <div className="flex gap-2">
               <button onClick={() => setPreview(false)} className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl bg-black/5 py-3 text-[14px] font-bold text-ink/60 active:scale-[0.98]"><Pencil size={15} /> Wróć do edycji</button>
-              <button onClick={publish} className="flex flex-[2] items-center justify-center gap-2 rounded-2xl bg-coral py-3 text-[14px] font-bold text-white shadow-coral active:scale-[0.98]"><Sparkles size={16} /> {editingId ? 'Zapisz' : 'Opublikuj'}</button>
+              <button onClick={publish} disabled={!canPublish} className={cx('flex flex-[2] items-center justify-center gap-2 rounded-2xl py-3 text-[14px] font-bold transition active:scale-[0.98]', canPublish ? 'bg-coral text-white shadow-coral' : 'bg-black/10 text-ink/40')}><Sparkles size={16} /> {editingId ? 'Zapisz' : 'Opublikuj'}</button>
             </div>
           ) : (
             <div className="space-y-2">
               <button onClick={() => setPreview(true)} className="flex w-full items-center justify-center gap-2 rounded-2xl border border-coral/30 bg-coral/5 py-2.5 text-[13.5px] font-bold text-coral active:scale-[0.98]"><Eye size={16} /> Podgląd przed publikacją</button>
               <div className="flex gap-2">
                 <button onClick={close} className="flex-1 rounded-2xl bg-black/5 py-3 text-[14px] font-bold text-ink/60 active:scale-[0.98]">Anuluj</button>
-                <button onClick={publish} className="flex flex-[2] items-center justify-center gap-2 rounded-2xl bg-coral py-3 text-[14px] font-bold text-white shadow-coral active:scale-[0.98]"><Sparkles size={16} /> {editingId ? 'Zapisz' : 'Opublikuj'}</button>
+                <button onClick={publish} disabled={!canPublish} className={cx('flex flex-[2] items-center justify-center gap-2 rounded-2xl py-3 text-[14px] font-bold transition active:scale-[0.98]', canPublish ? 'bg-coral text-white shadow-coral' : 'bg-black/10 text-ink/40')}><Sparkles size={16} /> {editingId ? 'Zapisz' : 'Opublikuj'}</button>
               </div>
+              {!canPublish && <p className="text-center text-[11.5px] text-ink/45">Uzupełnij tytuł, żeby opublikować.</p>}
             </div>
           )}
         </div>
@@ -1295,10 +1304,12 @@ function EventsView({ venue, onOpenDetail, backRef, initialDraft, onDraftConsume
   };
 
   const [confirm, setConfirm] = useState(false);
-  const publish = () => setConfirm(true);
+  // Anty-spam: nie publikujemy pustych wydarzeń — wymagany tytuł i data.
+  const canPublish = f.title.trim().length >= 2 && !!f.startDate;
+  const publish = () => { if (canPublish) setConfirm(true); };
   const doPublish = async () => {
     setConfirm(false);
-    if (saving) return;
+    if (saving || !canPublish) return;
     setSaving(true);
     // Pinezka: gdy właściciel zatwierdził/przeciągnął ją na mapie — użyj jej. Inaczej geokoduj adres.
     let coords = f.coords;
@@ -1418,15 +1429,16 @@ function EventsView({ venue, onOpenDetail, backRef, initialDraft, onDraftConsume
           {preview ? (
             <div className="flex gap-2">
               <button onClick={() => setPreview(false)} className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl bg-black/5 py-3 text-[14px] font-bold text-ink/60 active:scale-[0.98]"><Pencil size={15} /> Wróć do edycji</button>
-              <button onClick={publish} className="flex flex-[2] items-center justify-center gap-2 rounded-2xl bg-coral py-3 text-[14px] font-bold text-white shadow-coral active:scale-[0.98]"><Sparkles size={16} /> {editingId ? 'Zapisz' : 'Opublikuj'}</button>
+              <button onClick={publish} disabled={!canPublish} className={cx('flex flex-[2] items-center justify-center gap-2 rounded-2xl py-3 text-[14px] font-bold transition active:scale-[0.98]', canPublish ? 'bg-coral text-white shadow-coral' : 'bg-black/10 text-ink/40')}><Sparkles size={16} /> {editingId ? 'Zapisz' : 'Opublikuj'}</button>
             </div>
           ) : (
             <div className="space-y-2">
               <button onClick={() => setPreview(true)} className="flex w-full items-center justify-center gap-2 rounded-2xl border border-coral/30 bg-coral/5 py-2.5 text-[13.5px] font-bold text-coral active:scale-[0.98]"><Eye size={16} /> Podgląd przed publikacją</button>
               <div className="flex gap-2">
                 <button onClick={close} className="flex-1 rounded-2xl bg-black/5 py-3 text-[14px] font-bold text-ink/60 active:scale-[0.98]">Anuluj</button>
-                <button onClick={publish} className="flex flex-[2] items-center justify-center gap-2 rounded-2xl bg-coral py-3 text-[14px] font-bold text-white shadow-coral active:scale-[0.98]"><Sparkles size={16} /> {editingId ? 'Zapisz' : 'Opublikuj'}</button>
+                <button onClick={publish} disabled={!canPublish} className={cx('flex flex-[2] items-center justify-center gap-2 rounded-2xl py-3 text-[14px] font-bold transition active:scale-[0.98]', canPublish ? 'bg-coral text-white shadow-coral' : 'bg-black/10 text-ink/40')}><Sparkles size={16} /> {editingId ? 'Zapisz' : 'Opublikuj'}</button>
               </div>
+              {!canPublish && <p className="text-center text-[11.5px] text-ink/45">Uzupełnij tytuł, żeby opublikować.</p>}
             </div>
           )}
         </div>
