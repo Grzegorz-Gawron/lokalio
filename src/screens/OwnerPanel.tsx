@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ChevronLeft, ChevronRight, Store, Mail, Check } from 'lucide-react';
 import { useApp } from '../store/AppContext';
 import { cx } from '../components/ui';
+import { AuthCard } from '../components/AuthCard';
 import {
   ORGANIZER_CATEGORIES, organizerCategoryByKey,
   type AccountType, type OrganizerCategoryKey,
@@ -12,10 +13,56 @@ import { OrganizerPanel } from './OwnerOrganizerPanel';
 const inputCls = 'mt-1.5 w-full rounded-xl border border-black/10 bg-paper px-3.5 py-2.5 text-[14px] outline-none focus:border-coral';
 
 export function OwnerPanel() {
-  const { ownerLoggedIn, ownerBusiness } = useApp();
+  const { ownerLoggedIn, ownerBusiness, account, authEnabled } = useApp();
+  // Najpierw logowanie do konta Lokalio — dopiero potem zakładanie / panel firmowy.
+  // (demo „Podgląd bez logowania" ustawia ownerLoggedIn i omija bramkę).
+  if (authEnabled && !account && !ownerLoggedIn) return <BusinessGate />;
   if (!ownerLoggedIn) return <BusinessRegister />;
   if (ownerBusiness?.accountType === 'organizer') return <OrganizerPanel />;
   return <LokalPanel />;
+}
+
+// ============================================================
+// Bramka logowania — to samo konto Lokalio co na profilu, przed panelem firmowym
+// ============================================================
+function BusinessGate() {
+  const { back, loginOwner } = useApp();
+  return (
+    <div className="h-full overflow-y-auto no-scrollbar bg-cream pb-10">
+      <div className="px-4 pb-3 pt-5">
+        <div className="flex items-center gap-3">
+          <button onClick={back} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/5 active:scale-90"><ChevronLeft size={22} /></button>
+          <h1 className="flex items-center gap-2 text-[19px] font-extrabold tracking-tight text-ink"><Store size={19} className="text-coral" /> Panel firmowy</h1>
+        </div>
+      </div>
+
+      <div className="px-4">
+        <h2 className="text-[20px] font-extrabold tracking-tight text-ink">Zaloguj się, aby zarządzać firmą</h2>
+        <p className="mb-4 mt-1 text-[13.5px] text-subtle">Najpierw zaloguj się lub załóż konto — potem dodasz lokal lub wydarzenia.</p>
+
+        <AuthCard />
+
+        {/* Szybki podgląd paneli bez logowania (demo) */}
+        <div className="mt-6 rounded-card border border-dashed border-black/15 p-3.5">
+          <p className="text-[11.5px] font-bold uppercase tracking-wide text-ink/45">Podgląd bez logowania</p>
+          <div className="mt-2 flex gap-2">
+            <button
+              onClick={() => loginOwner({ name: 'Café Camelot', email: 'demo@lokalio.pl', accountType: 'lokal' })}
+              className="flex-1 rounded-xl bg-black/5 py-2.5 text-[12.5px] font-bold text-ink/70 active:scale-95"
+            >
+              🏪 Panel lokalu
+            </button>
+            <button
+              onClick={() => loginOwner({ name: 'Centrum Kultury', email: 'demo@lokalio.pl', accountType: 'organizer', organizerCategory: 'cultural_institution' })}
+              className="flex-1 rounded-xl bg-black/5 py-2.5 text-[12.5px] font-bold text-ink/70 active:scale-95"
+            >
+              🎭 Panel organizatora
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ============================================================
@@ -82,25 +129,6 @@ function BusinessRegister() {
               perks={['Wydarzenia', 'Bilety (wkrótce)', 'Statystyki', 'Galeria']}
               onClick={() => pick('organizer')}
             />
-
-            {/* Szybki podgląd paneli bez logowania (demo) */}
-            <div className="mt-6 rounded-card border border-dashed border-black/15 p-3.5">
-              <p className="text-[11.5px] font-bold uppercase tracking-wide text-ink/45">Podgląd bez logowania</p>
-              <div className="mt-2 flex gap-2">
-                <button
-                  onClick={() => loginOwner({ name: 'Café Camelot', email: 'demo@lokalio.pl', accountType: 'lokal' })}
-                  className="flex-1 rounded-xl bg-black/5 py-2.5 text-[12.5px] font-bold text-ink/70 active:scale-95"
-                >
-                  🏪 Panel lokalu
-                </button>
-                <button
-                  onClick={() => loginOwner({ name: 'Centrum Kultury', email: 'demo@lokalio.pl', accountType: 'organizer', organizerCategory: 'cultural_institution' })}
-                  className="flex-1 rounded-xl bg-black/5 py-2.5 text-[12.5px] font-bold text-ink/70 active:scale-95"
-                >
-                  🎭 Panel organizatora
-                </button>
-              </div>
-            </div>
           </>
         )}
 
