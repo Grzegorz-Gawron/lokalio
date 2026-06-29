@@ -595,22 +595,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
       showToast('Przeglądarka nie wspiera lokalizacji', '⚠️');
       return;
     }
+    // Wymaga bezpiecznego kontekstu (HTTPS lub localhost) — inaczej przeglądarka cicho odmawia.
+    if (typeof window !== 'undefined' && window.isSecureContext === false) {
+      showToast('Lokalizacja działa tylko na HTTPS', '⚠️');
+      return;
+    }
     setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setLocating(false);
-        const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        const c = nearestCity(coords);
-        setCurrentCity(c.id);
-        setUser((u) => (u ? { ...u, coords, district: 'Twoja lokalizacja', usesRealLocation: true } : u));
-        showToast(`Lokalizacja ustawiona · najbliżej: ${c.name}`, '📍');
-      },
-      () => {
-        setLocating(false);
-        showToast('Nie udało się pobrać lokalizacji', '⚠️');
-      },
-      { enableHighAccuracy: true, timeout: 9000, maximumAge: 60000 },
-    );
+    const onOk = (pos: GeolocationPosition) => {
+      setLocating(false);
+      const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      const c = nearestCity(coords);
+      setCurrentCity(c.id);
+      setUser((u) => (u ? { ...u, coords, district: 'Twoja lokalizacja', usesRealLocation: true } : u));
+      showToast(`Lokalizacja ustawiona · najbliżej: ${c.name}`, '📍');
+    };
+    const onErr = (err: GeolocationPositionError, retried: boolean) => {
+      // Timeout w trybie dokładnym (GPS) bywa częsty w budynku → spróbuj raz szybciej, sieciowo.
+      if (err.code === err.TIMEOUT && !retried) {
+        navigator.geolocation.getCurrentPosition(onOk, (e) => onErr(e, true), { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 });
+        return;
+      }
+      setLocating(false);
+      const msg = err.code === err.PERMISSION_DENIED
+        ? 'Brak zgody na lokalizację — włącz ją dla strony w ustawieniach przeglądarki'
+        : err.code === err.POSITION_UNAVAILABLE
+          ? 'Lokalizacja niedostępna — sprawdź, czy GPS jest włączony'
+          : 'Nie udało się pobrać lokalizacji — spróbuj ponownie';
+      showToast(msg, '⚠️');
+    };
+    navigator.geolocation.getCurrentPosition(onOk, (e) => onErr(e, false), { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
   }, [showToast]);
 
   // ---- save ----

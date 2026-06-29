@@ -648,9 +648,12 @@ function ProfilView({ venue, isAdmin, onDeleted, onCancel }: { venue: Venue; isA
   const removeHour = (i: number) => setHours((hs) => hs.filter((_, j) => j !== i));
 
   const [confirm, setConfirm] = useState(false);
-  const save = () => setConfirm(true);
+  // Adres jest wymagany — bez ulicy nie da się zgeokodować pinezki, lokal trafiłby w środek miasta.
+  const addrOk = line1.trim().length > 0;
+  const save = () => { if (addrOk) setConfirm(true); };
   const doSave = async () => {
     setConfirm(false);
+    if (!addrOk) return;
     // Współrzędne pinezki: ręcznie ustawiona wygrywa; w innym razie, jeśli lokal wciąż jest
     // w domyślnym środku miasta, geokodujemy adres, żeby znacznik/miniatura trafiły w lokal.
     let resolved = coords;
@@ -758,9 +761,10 @@ function ProfilView({ venue, isAdmin, onDeleted, onCancel }: { venue: Venue; isA
         ))}
       </div>
 
-      <button onClick={save} className="mt-1 flex w-full items-center justify-center gap-2 rounded-2xl bg-coral py-3.5 text-[15px] font-bold text-white shadow-coral active:scale-[0.98]">
+      <button onClick={save} disabled={!addrOk} className={cx('mt-1 flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 text-[15px] font-bold transition active:scale-[0.98]', addrOk ? 'bg-coral text-white shadow-coral' : 'bg-black/10 text-ink/40')}>
         <Check size={18} /> Zapisz zmiany
       </button>
+      {!addrOk && <p className="-mt-1 text-center text-[11.5px] text-ink/45">Podaj adres lokalu (ulica i numer) — to ustawia pinezkę na mapie.</p>}
       <button onClick={onCancel} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-black/5 py-3 text-[14px] font-bold text-ink/60 active:scale-[0.98]">
         Anuluj
       </button>
