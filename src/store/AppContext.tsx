@@ -25,7 +25,7 @@ import { EVENTS, OFFERS, eventsForCity, offersForCity, venuesForCity, makeDefaul
 import { loadPublishedEvents } from '../lib/published';
 import { track, identifyUser, resetAnalytics } from '../lib/analytics';
 import { setErrorUser } from '../lib/errors';
-import { snapRadius, DEFAULT_RADIUS_KM } from '../lib/geo';
+import { snapRadius, DEFAULT_RADIUS_KM, requestPosition, geoFailMessage } from '../lib/geo';
 import { CITIES, DEFAULT_CITY_ID, cityById, cityIdOf, nearestCity, type City } from '../data/cities';
 import { loadLivePlaces } from '../lib/places';
 import { buildNotifications, NOTIF_SEEN_KEY, type NotifItem } from '../lib/notifications';
@@ -591,39 +591,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const useMyLocation = useCallback(() => {
-    if (!('geolocation' in navigator)) {
-      showToast('Przeglądarka nie wspiera lokalizacji', '⚠️');
-      return;
-    }
-    // Wymaga bezpiecznego kontekstu (HTTPS lub localhost) — inaczej przeglądarka cicho odmawia.
-    if (typeof window !== 'undefined' && window.isSecureContext === false) {
-      showToast('Lokalizacja działa tylko na HTTPS', '⚠️');
-      return;
-    }
     setLocating(true);
-    const onOk = (pos: GeolocationPosition) => {
-      setLocating(false);
-      const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      const c = nearestCity(coords);
-      setCurrentCity(c.id);
-      setUser((u) => (u ? { ...u, coords, district: 'Twoja lokalizacja', usesRealLocation: true } : u));
-      showToast(`Lokalizacja ustawiona · najbliżej: ${c.name}`, '📍');
-    };
-    const onErr = (err: GeolocationPositionError, retried: boolean) => {
-      // Timeout w trybie dokładnym (GPS) bywa częsty w budynku → spróbuj raz szybciej, sieciowo.
-      if (err.code === err.TIMEOUT && !retried) {
-        navigator.geolocation.getCurrentPosition(onOk, (e) => onErr(e, true), { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 });
-        return;
-      }
-      setLocating(false);
-      const msg = err.code === err.PERMISSION_DENIED
-        ? 'Brak zgody na lokalizację — włącz ją dla strony w ustawieniach przeglądarki'
-        : err.code === err.POSITION_UNAVAILABLE
-          ? 'Lokalizacja niedostępna — sprawdź, czy GPS jest włączony'
-          : 'Nie udało się pobrać lokalizacji — spróbuj ponownie';
-      showToast(msg, '⚠️');
-    };
-    navigator.geolocation.getCurrentPosition(onOk, (e) => onErr(e, false), { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
+    requestPosition(
+      (coords) => {
+        setLocating(false);
+        const c = nearestCity(coords);
+        setCurrentCity(c.id);
+        setUser((u) => (u ? { ...u, coords, district: 'Twoja lokalizacja', usesRealLocation: true } : u));
+        showToast(`Lokalizacja ustawiona · najbliżej: ${c.name}`, '📍');
+      },
+      (reason) => { setLocating(false); showToast(geoFailMessage(reason), '⚠️'); },
+    );
   }, [showToast]);
 
   // ---- save ----

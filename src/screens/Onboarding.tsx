@@ -6,6 +6,7 @@ import { CATEGORY_META } from '../theme';
 import { EVENT_GROUPS } from '../lib/business';
 import { cx, Chip, PasswordFields, pwdReady } from '../components/ui';
 import { SELECTABLE_CITIES, cityById, nearestCity, DEFAULT_CITY_ID } from '../data/cities';
+import { requestPosition, geoFailMessage } from '../lib/geo';
 import { emailHasAccount } from '../lib/backend';
 import type { CategoryKey, Gender, LatLng } from '../types';
 
@@ -46,20 +47,17 @@ export function Onboarding() {
   };
 
   const useMyLocation = () => {
-    if (!('geolocation' in navigator)) { showToast('Przeglądarka nie wspiera lokalizacji', '⚠️'); return; }
     setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
+    requestPosition(
+      (coords) => {
         setLocating(false);
-        const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         const c = nearestCity(coords);
         setGpsCoords(coords);
         setCityId(c.id);
         setDistrict('');
         showToast(`Lokalizacja włączona · najbliżej: ${c.name}`, '📍');
       },
-      () => { setLocating(false); showToast('Nie udało się pobrać lokalizacji', '⚠️'); },
-      { enableHighAccuracy: true, timeout: 9000, maximumAge: 60000 },
+      (reason) => { setLocating(false); showToast(geoFailMessage(reason), '⚠️'); },
     );
   };
 

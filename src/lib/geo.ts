@@ -17,6 +17,38 @@ function toRad(deg: number): number {
   return (deg * Math.PI) / 180;
 }
 
+// ---- geolokalizacja (wspólna dla onboardingu i „Zmień lokalizację") ----
+export type GeoFail = 'denied' | 'unavailable' | 'timeout' | 'unsupported';
+
+/**
+ * Pobiera pozycję użytkownika. Najpierw próba dokładna (GPS); gdy się przedawni
+ * (częste w budynku), JEDNA szybka próba sieciowa — to wyraźnie podnosi skuteczność
+ * na telefonie. Nie blokujemy na isSecureContext — gdy kontekst nie jest bezpieczny,
+ * przeglądarka i tak zwróci błąd, który mapujemy na czytelny komunikat.
+ */
+export function requestPosition(onOk: (c: LatLng) => void, onFail: (reason: GeoFail) => void): void {
+  if (typeof navigator === 'undefined' || !('geolocation' in navigator)) { onFail('unsupported'); return; }
+  const ok = (pos: GeolocationPosition) => onOk({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+  const fail = (err: GeolocationPositionError, retried: boolean) => {
+    if (err.code === err.TIMEOUT && !retried) {
+      navigator.geolocation.getCurrentPosition(ok, (e) => fail(e, true), { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 });
+      return;
+    }
+    onFail(err.code === err.PERMISSION_DENIED ? 'denied' : err.code === err.POSITION_UNAVAILABLE ? 'unavailable' : 'timeout');
+  };
+  navigator.geolocation.getCurrentPosition(ok, (e) => fail(e, false), { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
+}
+
+/** Czytelny po polsku komunikat dla nieudanej geolokalizacji. */
+export function geoFailMessage(reason: GeoFail): string {
+  switch (reason) {
+    case 'denied': return 'Brak zgody na lokalizację — włącz ją dla strony w ustawieniach przeglądarki';
+    case 'unavailable': return 'Lokalizacja niedostępna — sprawdź, czy GPS jest włączony';
+    case 'unsupported': return 'Przeglądarka nie wspiera lokalizacji';
+    default: return 'Nie udało się pobrać lokalizacji — spróbuj ponownie';
+  }
+}
+
 /** "350 m" / "1,2 km" — format po polsku (przecinek). */
 export function formatDistance(km: number): string {
   if (km < 1) {
