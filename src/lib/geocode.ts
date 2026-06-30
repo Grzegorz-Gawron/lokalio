@@ -18,6 +18,13 @@ export interface GeoAddr {
 const ENDPOINT = 'https://nominatim.openstreetmap.org/search';
 const TIMEOUT = 8000;
 
+// Geokoder (OSM) nie zna prefiksów typu „ul."/„al."/„pl." — w danych ulica to „Mickiewicza",
+// nie „ul. Mickiewicza". Usuwamy wiodący prefiks, żeby adres się znalazł niezależnie od tego,
+// czy użytkownik wpisał „ul." (a placeholder akurat to sugeruje).
+function stripStreetPrefix(s: string): string {
+  return s.replace(/^\s*(ul\.?|ulica|al\.?|aleja|aleje|pl\.?|plac|os\.?|osiedle|rondo)\s+/i, '').trim();
+}
+
 async function query(params: URLSearchParams): Promise<LatLng | null> {
   try {
     const ctrl = new AbortController();
@@ -39,7 +46,7 @@ async function query(params: URLSearchParams): Promise<LatLng | null> {
 // Zwraca współrzędne najlepszego trafienia albo null (pusty adres, brak wyniku, błąd sieci/timeout).
 // Najpierw zapytanie strukturalne (ulica/miasto/kod) — najdokładniejsze; gdy spudłuje, fallback na tekst.
 export async function geocodeAddr(a: GeoAddr): Promise<LatLng | null> {
-  const street = (a.line1 || '').trim();
+  const street = stripStreetPrefix((a.line1 || '').trim());
   const placeName = (a.placeName || '').trim();
   const city = (a.city || '').trim();
   const country = (a.country || 'Polska').trim();

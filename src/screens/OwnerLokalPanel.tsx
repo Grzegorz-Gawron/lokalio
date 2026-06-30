@@ -60,7 +60,7 @@ export function AddressBlock({ v, onChange, placeNameLabel = 'Nazwa miejsca' }: 
     <>
       <Field label={placeNameLabel}><input value={v.placeName} onChange={(e) => onChange({ placeName: e.target.value })} placeholder="opcjonalnie" className={inputCls} /></Field>
       <div className="flex gap-3">
-        <Field label="Linia adresu 1" className="flex-1"><input value={v.line1} onChange={(e) => onChange({ line1: e.target.value })} placeholder="ul. Marszałkowska 1" className={inputCls} /></Field>
+        <Field label="Linia adresu 1" className="flex-1"><input value={v.line1} onChange={(e) => onChange({ line1: e.target.value })} placeholder="np. Mariacka 3" className={inputCls} /></Field>
         <Field label="Linia adresu 2" className="flex-1"><input value={v.line2} onChange={(e) => onChange({ line2: e.target.value })} placeholder="lok. 10" className={inputCls} /></Field>
       </div>
       <div className="flex gap-3">
