@@ -1,5 +1,5 @@
 import { supabase, supabaseEnabled } from './supabase';
-import type { CategoryKey, Gender } from '../types';
+import type { CategoryKey, Gender, Venue, Offer, EventItem } from '../types';
 
 export const authEnabled = supabaseEnabled;
 
@@ -258,6 +258,53 @@ export async function dbDeleteOwner(userId: string, kind: OwnerKind, itemId: str
     await supabase.from('lk_owner_content').delete().eq('profile_id', userId).eq('kind', kind).eq('item_id', itemId);
   } catch {
     /* ignore */
+  }
+}
+
+// ---- publiczny katalog (lk_published): treść właściciela widoczna dla WSZYSTKICH ----
+// Odczyt publiczny (anon), zapis tylko swojego (RLS auth.uid() = profile_id).
+export type PublishKind = 'venue' | 'offer' | 'event';
+
+export interface PublishedContent { venues: Venue[]; offers: Offer[]; events: EventItem[]; }
+
+/** Publikuje (lub aktualizuje) jeden element do publicznego katalogu. */
+export async function dbPublish(userId: string, kind: PublishKind, itemId: string, cityId: string | null, data: unknown): Promise<void> {
+  if (!supabase) return;
+  try {
+    await supabase.from('lk_published').upsert({ profile_id: userId, kind, item_id: itemId, city_id: cityId, data, updated_at: new Date().toISOString() });
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Cofa publikację jednego elementu (np. po usunięciu/zakończeniu). */
+export async function dbUnpublish(userId: string, kind: PublishKind, itemId: string): Promise<void> {
+  if (!supabase) return;
+  try {
+    await supabase.from('lk_published').delete().eq('profile_id', userId).eq('kind', kind).eq('item_id', itemId);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Wczytuje publiczny katalog (dla wszystkich użytkowników). Opcjonalnie po mieście. */
+export async function dbLoadPublished(cityId?: string): Promise<PublishedContent> {
+  const empty: PublishedContent = { venues: [], offers: [], events: [] };
+  if (!supabase) return empty;
+  try {
+    let q = supabase.from('lk_published').select('kind,data').limit(500);
+    if (cityId) q = q.eq('city_id', cityId);
+    const { data, error } = await q;
+    if (error || !data) return empty;
+    const out: PublishedContent = { venues: [], offers: [], events: [] };
+    (data as { kind: PublishKind; data: unknown }[]).forEach((r) => {
+      if (r.kind === 'venue') out.venues.push(r.data as Venue);
+      else if (r.kind === 'offer') out.offers.push(r.data as Offer);
+      else if (r.kind === 'event') out.events.push(r.data as EventItem);
+    });
+    return out;
+  } catch {
+    return empty;
   }
 }
 

@@ -1015,6 +1015,13 @@ export function registerOwnerOffers(o: Offer[]) { OWNER_OFFERS = o; }
 let OWNER_EVENTS: EventItem[] = [];
 export function registerOwnerEvents(e: EventItem[]) { OWNER_EVENTS = e; }
 
+// Publiczny katalog (lk_published): treść właściciela widoczna dla WSZYSTKICH użytkowników,
+// nie tylko jej autora. Rejestrowana z AppContext po wczytaniu z Supabase.
+let PUB_VENUES: Venue[] = [];
+let PUB_OFFERS: Offer[] = [];
+let PUB_EVENTS: EventItem[] = [];
+export function registerPublishedOwner(v: Venue[], o: Offer[], e: EventItem[]) { PUB_VENUES = v; PUB_OFFERS = o; PUB_EVENTS = e; }
+
 // Publiczny kanał: wydarzenia opublikowane w Supabase — widoczne dla WSZYSTKICH (nie tylko właściciela).
 let PUBLISHED_EVENTS: EventItem[] = [];
 let PUBLISHED_ORGS: Record<string, Organizer> = {};
@@ -1052,18 +1059,27 @@ export function makeDemoNearbyEvent(coords: LatLng): EventItem {
   };
 }
 
+// Łączy listy po id, pierwsze wystąpienie wygrywa (np. własna treść > ta sama opublikowana > seed).
+function dedupById<T extends { id: string }>(...lists: T[][]): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const list of lists) for (const item of list) if (!seen.has(item.id)) { seen.add(item.id); out.push(item); }
+  return out;
+}
+
 // Aktywny zbiór do przeglądania / agenta / „podobnych": realne dane gdy włączone, inaczej seed.
-export const activeVenues = (): Venue[] => [...OWNER_VENUES, ...(LIVE_ON ? LIVE_VENUES : VENUES)];
-export const activeEvents = (): EventItem[] => [...DEMO_EVENTS, ...OWNER_EVENTS, ...PUBLISHED_EVENTS, ...(LIVE_ON ? LIVE_EVENTS : EVENTS)];
-export const activeOffers = (): Offer[] => [...OWNER_OFFERS, ...(LIVE_ON ? LIVE_OFFERS : OFFERS)];
+// PUB_* = publiczny katalog właściciela (lk_published) — widoczny dla wszystkich.
+export const activeVenues = (): Venue[] => dedupById(OWNER_VENUES, PUB_VENUES, LIVE_ON ? LIVE_VENUES : VENUES);
+export const activeEvents = (): EventItem[] => dedupById(DEMO_EVENTS, OWNER_EVENTS, PUB_EVENTS, PUBLISHED_EVENTS, LIVE_ON ? LIVE_EVENTS : EVENTS);
+export const activeOffers = (): Offer[] => dedupById(OWNER_OFFERS, PUB_OFFERS, LIVE_ON ? LIVE_OFFERS : OFFERS);
 
 // ============================================================
 // Lookupy — rozwiązują po id zarówno dane live, jak i seed (live ma pierwszeństwo).
 // ============================================================
 
-const allVenues = () => [...OWNER_VENUES, ...(LIVE_ON ? [...LIVE_VENUES, ...VENUES] : VENUES)];
-const allEvents = () => [...DEMO_EVENTS, ...OWNER_EVENTS, ...PUBLISHED_EVENTS, ...(LIVE_ON ? [...LIVE_EVENTS, ...EVENTS] : EVENTS)];
-const allOffers = () => [...OWNER_OFFERS, ...(LIVE_ON ? [...LIVE_OFFERS, ...OFFERS] : OFFERS)];
+const allVenues = () => dedupById(OWNER_VENUES, PUB_VENUES, LIVE_ON ? [...LIVE_VENUES, ...VENUES] : VENUES);
+const allEvents = () => dedupById(DEMO_EVENTS, OWNER_EVENTS, PUB_EVENTS, PUBLISHED_EVENTS, LIVE_ON ? [...LIVE_EVENTS, ...EVENTS] : EVENTS);
+const allOffers = () => dedupById(OWNER_OFFERS, PUB_OFFERS, LIVE_ON ? [...LIVE_OFFERS, ...OFFERS] : OFFERS);
 
 export const venueById = (id?: string) => allVenues().find((v) => v.id === id);
 export const eventById = (id?: string) => allEvents().find((e) => e.id === id);

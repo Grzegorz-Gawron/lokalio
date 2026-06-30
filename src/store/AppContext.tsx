@@ -21,7 +21,7 @@ import type {
   Venue,
 } from '../types';
 import type { AccountType, OrganizerCategoryKey } from '../lib/business';
-import { EVENTS, OFFERS, eventsForCity, offersForCity, venuesForCity, makeDefaultUser, venueById, offerById, registerLiveData, registerOwnerVenues, registerOwnerOffers, registerOwnerEvents, registerPublishedEvents, publishedEventsForCity, activeVenues, DEMO_NEARBY_EVENT, makeDemoNearbyEvent, registerDemoEvents, type LiveData } from '../data/seed';
+import { EVENTS, OFFERS, eventsForCity, offersForCity, venuesForCity, makeDefaultUser, venueById, offerById, registerLiveData, registerOwnerVenues, registerOwnerOffers, registerOwnerEvents, registerPublishedEvents, registerPublishedOwner, publishedEventsForCity, activeVenues, DEMO_NEARBY_EVENT, makeDemoNearbyEvent, registerDemoEvents, type LiveData } from '../data/seed';
 import { loadPublishedEvents } from '../lib/published';
 import { track, identifyUser, resetAnalytics } from '../lib/analytics';
 import { setErrorUser } from '../lib/errors';
@@ -33,7 +33,8 @@ import {
   authEnabled, getSessionInfo, onAuthChange, signInWithEmail, signInWithPassword, signUpWithPassword, signOut, upsertProfile, updatePoints, loadProfile,
   dbCheckin, dbActivateVoucher, dbSetVoucherStatus, dbSetSave, dbSetFollow, dbSetFriend,
   dbLoadOwnerContent, dbUpsertOwner, dbDeleteOwner,
-  type SessionInfo,
+  dbPublish, dbUnpublish, dbLoadPublished,
+  type SessionInfo, type PublishedContent,
 } from '../lib/backend';
 
 export type Tab = 'home' | 'map' | 'agent' | 'vouchers' | 'profile';
@@ -433,6 +434,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
     return () => { cancelled = true; };
   }, []);
+
+  // Publiczny katalog właściciela (lk_published): lokale/oferty/wydarzenia dodane przez lokale,
+  // widoczne dla WSZYSTKICH użytkowników (też gości). Przeładowywane przy zmianie miasta.
+  const [pubOwner, setPubOwner] = useState<PublishedContent>({ venues: [], offers: [], events: [] });
+  useEffect(() => {
+    let cancelled = false;
+    dbLoadPublished(currentCity).then((p) => {
+      if (cancelled) return;
+      registerPublishedOwner(p.venues, p.offers, p.events);
+      setPubOwner(p);
+    });
+    return () => { cancelled = true; };
+  }, [currentCity]);
   // klucz ~110 m — przeładuj tylko przy realnej zmianie lokalizacji, nie na każdym renderze
   const coordsKey = user ? `${user.coords.lat.toFixed(3)},${user.coords.lng.toFixed(3)}` : '';
   useEffect(() => {
@@ -471,19 +485,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Wcześniej przy braku danych „live" filtrowaliśmy ją po mieście, przez co potrafiła zniknąć ze wszystkich ekranów. Relewancję załatwia dystans w ekranach.
   const events = useMemo(() => {
     const activeOwn = ownerEvents.filter((e) => !e.ended); // zakończone wydarzenia znikają z aplikacji
-    return [...demoNearby, ...activeOwn, ...publishedEventsForCity(currentCity), ...(live ? live.events : eventsForCity(currentCity))];
-  }, [live, ownerEvents, currentCity, published, demoNearby]);
+    const ownIds = new Set(activeOwn.map((e) => e.id));
+    const pub = pubOwner.events.filter((e) => !e.ended && !ownIds.has(e.id)); // publiczne wydarzenia innych lokali
+    return [...demoNearby, ...activeOwn, ...pub, ...publishedEventsForCity(currentCity), ...(live ? live.events : eventsForCity(currentCity))];
+  }, [live, ownerEvents, currentCity, published, pubOwner, demoNearby]);
   const offers = useMemo(() => {
     const activeOwn = ownerOffers.filter((o) => !o.ended); // zakończone oferty znikają z aplikacji
+    const ownIds = new Set(activeOwn.map((o) => o.id));
+    const pub = pubOwner.offers.filter((o) => !o.ended && !ownIds.has(o.id)); // publiczne oferty innych lokali
     // Zrealizowane (wykorzystane przez tego użytkownika) chowamy ze WSZYSTKICH list — zostają tylko w „Moje oferty → Wykorzystane".
-    return [...activeOwn, ...(live ? live.offers : offersForCity(currentCity))].filter((o) => !redeemedOfferIds.includes(o.id));
-  }, [live, ownerOffers, currentCity, redeemedOfferIds]);
+    return [...activeOwn, ...pub, ...(live ? live.offers : offersForCity(currentCity))].filter((o) => !redeemedOfferIds.includes(o.id));
+  }, [live, ownerOffers, currentCity, redeemedOfferIds, pubOwner]);
   const venues = useMemo(() => {
     // Lokale właściciela trafiają też na mapę i listy „w pobliżu" (wersja właściciela wygrywa nad seedem przy tym samym id).
     const base = live ? live.venues : venuesForCity(currentCity);
     const ownIds = new Set(ownerVenues.map((v) => v.id));
-    return [...ownerVenues, ...base.filter((v) => !ownIds.has(v.id))];
-  }, [live, ownerVenues, currentCity]);
+    const pub = pubOwner.venues.filter((v) => !ownIds.has(v.id)); // publiczne lokale innych właścicieli
+    const pubIds = new Set(pub.map((v) => v.id));
+    return [...ownerVenues, ...pub, ...base.filter((v) => !ownIds.has(v.id) && !pubIds.has(v.id))];
+  }, [live, ownerVenues, currentCity, pubOwner]);
 
   // ---- toast ----
   const toastTimer = useRef<number | undefined>(undefined);
@@ -827,6 +847,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const next = ownerBusinessRef.current ? { ...ownerBusinessRef.current, ...patch } : null;
     if (uid && next) dbUpsertOwner(uid, 'business', 'self', next);
   }, []);
+  // Publikacja oferty do publicznego katalogu + dociągnięcie publikacji jej lokalu (z adresem),
+  // żeby kafel oferty miał gdzie się zaczepić u innych użytkowników.
+  const publishOfferCloud = (uid: string, o: Offer) => {
+    const v = venueById(o.venueId);
+    dbPublish(uid, 'offer', o.id, v ? cityIdOf(v.coords) : null, o);
+    if (v && v.address && v.address.trim()) dbPublish(uid, 'venue', v.id, cityIdOf(v.coords), v);
+  };
   const addOwnerVenue = useCallback((v: Venue) => {
     setOwnerVenues((list) => [v, ...list]);
     setOwnerVenueIds((ids) => [v.id, ...ids]);
@@ -835,19 +862,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const updateOwnerVenue = useCallback((v: Venue) => {
     setOwnerVenues((list) => (list.some((x) => x.id === v.id) ? list.map((x) => (x.id === v.id ? v : x)) : [v, ...list]));
     setOwnerVenueIds((ids) => (ids.includes(v.id) ? ids : [v.id, ...ids]));
-    const uid = accountRef.current?.userId; if (uid) dbUpsertOwner(uid, 'venue', v.id, v);
+    const uid = accountRef.current?.userId;
+    if (uid) { dbUpsertOwner(uid, 'venue', v.id, v); if (v.address && v.address.trim()) dbPublish(uid, 'venue', v.id, cityIdOf(v.coords), v); }
   }, []);
   const removeOwnerVenue = useCallback((id: string) => {
     setOwnerVenues((list) => list.filter((x) => x.id !== id));
     setOwnerVenueIds((ids) => ids.filter((x) => x !== id));
-    const uid = accountRef.current?.userId; if (uid) dbDeleteOwner(uid, 'venue', id);
+    const uid = accountRef.current?.userId; if (uid) { dbDeleteOwner(uid, 'venue', id); dbUnpublish(uid, 'venue', id); }
   }, []);
-  const addOwnerEvent = useCallback((e: EventItem) => { setOwnerEvents((list) => [e, ...list]); const uid = accountRef.current?.userId; if (uid) dbUpsertOwner(uid, 'event', e.id, e); }, []);
-  const updateOwnerEvent = useCallback((e: EventItem) => { setOwnerEvents((list) => list.map((x) => (x.id === e.id ? e : x))); const uid = accountRef.current?.userId; if (uid) dbUpsertOwner(uid, 'event', e.id, e); }, []);
-  const removeOwnerEvent = useCallback((id: string) => { setOwnerEvents((list) => list.filter((x) => x.id !== id)); const uid = accountRef.current?.userId; if (uid) dbDeleteOwner(uid, 'event', id); }, []);
-  const addOwnerOffer = useCallback((o: Offer) => { setOwnerOffers((list) => [o, ...list]); const uid = accountRef.current?.userId; if (uid) dbUpsertOwner(uid, 'offer', o.id, o); }, []);
-  const updateOwnerOffer = useCallback((o: Offer) => { setOwnerOffers((list) => list.map((x) => (x.id === o.id ? o : x))); const uid = accountRef.current?.userId; if (uid) dbUpsertOwner(uid, 'offer', o.id, o); }, []);
-  const removeOwnerOffer = useCallback((id: string) => { setOwnerOffers((list) => list.filter((x) => x.id !== id)); const uid = accountRef.current?.userId; if (uid) dbDeleteOwner(uid, 'offer', id); }, []);
+  const addOwnerEvent = useCallback((e: EventItem) => { setOwnerEvents((list) => [e, ...list]); const uid = accountRef.current?.userId; if (uid) { dbUpsertOwner(uid, 'event', e.id, e); if (!e.ended) dbPublish(uid, 'event', e.id, cityIdOf(e.coords), e); } }, []);
+  const updateOwnerEvent = useCallback((e: EventItem) => { setOwnerEvents((list) => list.map((x) => (x.id === e.id ? e : x))); const uid = accountRef.current?.userId; if (uid) { dbUpsertOwner(uid, 'event', e.id, e); if (e.ended) dbUnpublish(uid, 'event', e.id); else dbPublish(uid, 'event', e.id, cityIdOf(e.coords), e); } }, []);
+  const removeOwnerEvent = useCallback((id: string) => { setOwnerEvents((list) => list.filter((x) => x.id !== id)); const uid = accountRef.current?.userId; if (uid) { dbDeleteOwner(uid, 'event', id); dbUnpublish(uid, 'event', id); } }, []);
+  const addOwnerOffer = useCallback((o: Offer) => { setOwnerOffers((list) => [o, ...list]); const uid = accountRef.current?.userId; if (uid) { dbUpsertOwner(uid, 'offer', o.id, o); if (!o.ended) publishOfferCloud(uid, o); } }, []);
+  const updateOwnerOffer = useCallback((o: Offer) => { setOwnerOffers((list) => list.map((x) => (x.id === o.id ? o : x))); const uid = accountRef.current?.userId; if (uid) { dbUpsertOwner(uid, 'offer', o.id, o); if (o.ended) dbUnpublish(uid, 'offer', o.id); else publishOfferCloud(uid, o); } }, []);
+  const removeOwnerOffer = useCallback((id: string) => { setOwnerOffers((list) => list.filter((x) => x.id !== id)); const uid = accountRef.current?.userId; if (uid) { dbDeleteOwner(uid, 'offer', id); dbUnpublish(uid, 'offer', id); } }, []);
 
   // ---- synchronizacja treści właściciela z chmurą (po zalogowaniu do konta) ----
   // Odpala się przy każdym logowaniu (nie tylko gdy już w panelu), żeby wracający

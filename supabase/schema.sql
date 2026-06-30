@@ -124,5 +124,26 @@ create policy "lk_feedback insert valid" on lk_feedback
   );
 -- (świadomie brak SELECT/UPDATE/DELETE — czytane tylko w Dashboardzie Supabase)
 
--- Gotowe. Katalog dodamy do bazy później (tabele lk_organizers/lk_venues/lk_events/lk_offers),
--- gdy organizatorzy/lokale mają zarządzać treścią samodzielnie.
+-- ---------- Publiczny katalog treści właściciela (lk_published) ----------
+-- Lokale/oferty/wydarzenia opublikowane w panelu firmowym — widoczne dla WSZYSTKICH
+-- użytkowników (w odróżnieniu od prywatnej lk_owner_content). Odczyt publiczny (anon),
+-- zapis tylko swojego (RLS po auth.uid()). data = pełny obiekt (Venue/Offer/EventItem).
+create table if not exists lk_published (
+  profile_id uuid not null references lk_profiles(id) on delete cascade,
+  kind       text not null check (kind in ('venue','offer','event')),
+  item_id    text not null,
+  city_id    text,
+  data       jsonb not null,
+  updated_at timestamptz default now(),
+  primary key (profile_id, kind, item_id)
+);
+create index if not exists lk_published_city_idx on lk_published(city_id, kind);
+
+alter table lk_published enable row level security;
+
+create policy "lk_published read all"   on lk_published for select to anon, authenticated using (true);
+create policy "lk_published insert own" on lk_published for insert to authenticated with check (auth.uid() = profile_id);
+create policy "lk_published update own" on lk_published for update to authenticated using (auth.uid() = profile_id) with check (auth.uid() = profile_id);
+create policy "lk_published delete own" on lk_published for delete to authenticated using (auth.uid() = profile_id);
+
+-- Gotowe.
