@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Heart, Ticket, MapPin, Eye, ChevronRight, LogOut, Store, Check, Moon, Pencil, UserPlus, Bell, Target, Lock, MessageSquarePlus } from 'lucide-react';
+import { Heart, Ticket, MapPin, Eye, ChevronRight, LogOut, Store, Check, Moon, Pencil, UserPlus, Bell, Target, Lock, MessageSquarePlus, ShieldCheck } from 'lucide-react';
 import { useApp } from '../store/AppContext';
 import { setAccountPassword } from '../lib/backend';
 import { BADGES, organizerById, venueById, offerById, eventById, offersForVenue, activeVenues } from '../data/seed';
@@ -244,6 +244,7 @@ export function ProfileScreen() {
             <span className={cx('absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all', theme === 'dark' ? 'left-[22px]' : 'left-0.5')} />
           </span>
         </button>
+        <Row icon={ShieldCheck} label="Polityka prywatności" sub="Jak przetwarzamy Twoje dane" onClick={() => window.open('/prywatnosc.html', '_blank', 'noopener,noreferrer')} />
       </div>
 
       {/* Odznaki — karuzela z pierścieniem postępu */}

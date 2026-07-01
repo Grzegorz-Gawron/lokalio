@@ -8,13 +8,16 @@ import App from './App';
 import { AppProvider } from './store/AppContext';
 import { initAnalytics } from './lib/analytics';
 import { initErrorTracking } from './lib/errors';
+import { getConsent } from './lib/consent';
+import { ConsentBanner } from './components/ConsentBanner';
 
 // Ustaw motyw zanim React się wyrenderuje (brak mignięcia jasnego w trybie ciemnym).
 if (localStorage.getItem('lokalio.theme') === 'dark') document.documentElement.classList.add('dark');
 
-// Monitoring: błędy (Sentry) + analityka produktu (PostHog). Bez kluczy w .env oba to no-op.
+// Monitoring błędów (Sentry) — niezbędny, bez PII (sendDefaultPii:false), działa zawsze.
 initErrorTracking();
-initAnalytics();
+// Analityka (PostHog) — RODO: dopiero po zgodzie użytkownika (baner). Inaczej włączy ją „Akceptuję".
+if (getConsent() === 'all') initAnalytics();
 
 // Awaryjny ekran zamiast białej strony, gdy render się wywali. Zgłoszenie do Sentry leci automatycznie.
 function ErrorFallback() {
@@ -32,6 +35,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <Sentry.ErrorBoundary fallback={<ErrorFallback />}>
     <AppProvider>
       <App />
+      <ConsentBanner />
       <Analytics />
     </AppProvider>
   </Sentry.ErrorBoundary>,
